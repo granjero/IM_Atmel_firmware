@@ -52,9 +52,18 @@ void setup()
   // mensaje de inicio
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.autoscroll();
   lcd.print("Conectate al WiFi IndoorMatic y selecciona tu red - s/n 0005");
+  for (int positionCounter = 0; positionCounter < 16; positionCounter++) {
+    // scroll one position left:
+    lcd.scrollDisplayLeft();
+    // wait a bit:
+    delay(150);
+  }
+  //lcd.scrollDisplayLeft();
+  //delay(5000);
+
   Serial.println(F("Conectate al WiFi IndoorMatic y selecciona tu red. - s/n 0005"));
+
   /* code */
 
   if (Serial.find("CONECTADO"))
