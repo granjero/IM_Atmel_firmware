@@ -14,6 +14,21 @@
 #define SOIL_PIN_0         A1       //int     soilPin0 = A1;  //define el pin para sensor de humedad de tierra
 #define SOIL_PIN_1         A3       //int     soilPin1 = A3;  //define el pin para sensor de humedad de tierra
 
+// Pantalla LCD
+const String T_s0   = "Temp s0: ";
+const String T_s1	  = "Temp s1: ";
+const String H_s0   = " Hum s0: ";
+const String H_s1		= " Hum s1: ";
+const String L_s0	  = "Luz s0: ";
+const String L_s1		= "Luz s1: ";
+const String S_s0   = "H Suelo0: ";
+const String S_s1	  = "H Suelo0: ";
+const String P	   	= "%";
+const String C	    = "C";
+const String L			= "^";
+const String ESP			= " ";
+
+// Dispositivo
 const String  dispositivo = "e4da3b7fbbce2345d7772b0674a318d5"; /*5*/  //nombre del dispositivo Importante cambiarlo por cada dispositivo
 //const String  dispositivo = "TEST";
 const long  intervalo = 360000; //constante de espera para mandar el GET
@@ -70,7 +85,8 @@ void loop()
   }
 
   //leeSensores();
-
+  /*renglon_1, numero_1, renglon_1_unidad, renglon_2, float numero_2, String renglon_2_unidad*/
+  pantalla(T_s0, i, C, T_s1, i+1, L);
   Serial.print(F("Estatus Conexion: "));
   Serial.println(online);
   delay(1000);
@@ -143,18 +159,7 @@ void leeSensores()
   }
 }
 
-const String T_s0   = "Temp s0: ";
-const String T_s1	  = "Temp s1: ";
-const String H_s0   = " Hum s0: ";
-const String H_s1		= " Hum s1: ";
-const String L_s0	  = "Luz s0: ";
-const String L_s1		= "Luz s1: ";
-const String S_s0   = "H Suelo0: ";
-const String S_s1	  = "H Suelo0: ";
-const String P	   	= "%";
-const String C	    = "C";
-const String L			= "^";
-const String ESP			= " ";
+
 
 void pantalla( String renglon_1, float numero_1, String renglon_1_unidad, String renglon_2, float numero_2, String renglon_2_unidad )
 {
