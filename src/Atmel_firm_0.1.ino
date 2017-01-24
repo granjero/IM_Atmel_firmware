@@ -5,6 +5,7 @@
 #include <LiquidCrystal.h> // lcd de 16 x 2
 #include <DHT.h> // sensor de temp y humedad
 
+// Constantes
 #define DHT_PIN_0          2        // pin al que va el cable de dato del sensor0 de temperatura
 #define DHT_PIN_1          3        // pin al que va el cable de dato del sensor1 de temperatura
 #define DHT_TYPE           DHT22    // DHT 22  (AM2302)
@@ -13,13 +14,11 @@
 #define SOIL_PIN_0         A1       //int     soilPin0 = A1;  //define el pin para sensor de humedad de tierra
 #define SOIL_PIN_1         A3       //int     soilPin1 = A3;  //define el pin para sensor de humedad de tierra
 
-
-//Variables
 const String  dispositivo = "e4da3b7fbbce2345d7772b0674a318d5"; /*5*/  //nombre del dispositivo Importante cambiarlo por cada dispositivo
 //const String  dispositivo = "TEST";
 const long  intervalo = 360000; //constante de espera para mandar el GET
 
-int     debug = 2;
+int     debug = 0;
 float   hum_0;  // humedad del sensor 0
 float   hum_1;  // humedad del sensor 1
 float   temp_0;  // temperatura del sensor 0
@@ -35,8 +34,11 @@ int     suelo_1; //valor analogico del pin
 float   valorSuelo_0; //valor mapeado
 float   valorSuelo_1; //valor mapeado
 
-boolean offline = false;
+int     i = 0;
 
+boolean online = false;
+
+// Construct de librerias del LCD y los sensores DHT
 LiquidCrystal lcd(13, 12, 11, 10, 9, 8); //inicializa la libreria con los numeros de pines utilizados
 DHT dht_0(DHT_PIN_0, DHT_TYPE); //inicializa la libreria para el pin
 DHT dht_1(DHT_PIN_1, DHT_TYPE);
@@ -44,11 +46,17 @@ DHT dht_1(DHT_PIN_1, DHT_TYPE);
 void setup()
 {
   Serial.begin(115200); // inicia comunicacion serie a 115.200 baudios
-  Serial.setTimeout(10000); // define el tiempo de espera de la comunicacion serial
+  Serial.setTimeout(1000); // define el tiempo de espera de la comunicacion serial
   lcd.begin(16,2); // inicia el lcd y setea el numero de columnas y de filas del lcd
   dht_0.begin(); // inicia el sensor0 AM2301
   dht_1.begin(); // inicia el sensor1 AM2301
 
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("  - SETUP -   ");
+  //delay(5000);
+
+  /*
   // mensaje de inicio
   lcd.clear();
   lcd.setCursor(0, 0);
@@ -63,35 +71,62 @@ void setup()
   //delay(5000);
 
   Serial.println(F("Conectate al WiFi IndoorMatic y selecciona tu red. - s/n 0005"));
+  */
 
-  /* code */
 
-  if (Serial.find("CONECTADO"))
-  {
-    Serial.println(F("esp8266 CONECTADO"));
-    offline = false;
-  }
-  else
-  {
-    Serial.println(F("esp8266 OFFLINE"));
-    offline = true;
-    return;
-  }
 }
 
 void loop()
 {
-  leeSensores();
-
-  if (offline)
+  if (!online)
   {
-    Serial.print(F("offline "));
-    Serial.println(offline);
-    delay(1000);
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("  - OFFLINE - ");
+    lcd.setCursor(0, 1);
+    lcd.print(i);
+    i++;
+    estaConecado();
+    if (debug > 1)
+    {
+      Serial.println(F("Estamos OFFLINE (loop): "));
+    }
   }
 
+  //leeSensores();
+
+  Serial.print(F("Estatus: "));
+  Serial.println(online);
+  delay(1000);
 }
 
+//
+void estaConecado ()
+{
+  if (Serial.find("CONECTADO_OK"))
+  {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("  - ONLINE -   ");
+    if (debug > 1)
+    {
+      Serial.println(F("esp8266 CONECTADO"));
+    }
+    online = true;
+  }
+  else
+  {
+    if (debug > 1)
+    {
+      Serial.println(F("esp8266 OFFLINE"));
+    }
+    online = false;
+  }
+}
+
+
+
+//lee los sensores y guarda los valores
 void leeSensores()
 {
 	hum_0        = dht_0.readHumidity();
