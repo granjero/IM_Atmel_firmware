@@ -50,30 +50,6 @@ void setup()
   lcd.begin(16,2); // inicia el lcd y setea el numero de columnas y de filas del lcd
   dht_0.begin(); // inicia el sensor0 AM2301
   dht_1.begin(); // inicia el sensor1 AM2301
-
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("  - SETUP -   ");
-  //delay(5000);
-
-  /*
-  // mensaje de inicio
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("Conectate al WiFi IndoorMatic y selecciona tu red - s/n 0005");
-  for (int positionCounter = 0; positionCounter < 16; positionCounter++) {
-    // scroll one position left:
-    lcd.scrollDisplayLeft();
-    // wait a bit:
-    delay(150);
-  }
-  //lcd.scrollDisplayLeft();
-  //delay(5000);
-
-  Serial.println(F("Conectate al WiFi IndoorMatic y selecciona tu red. - s/n 0005"));
-  */
-
-
 }
 
 void loop()
@@ -95,19 +71,25 @@ void loop()
 
   //leeSensores();
 
-  Serial.print(F("Estatus: "));
+  Serial.print(F("Estatus Conexion: "));
   Serial.println(online);
   delay(1000);
 }
 
-//
+
+
+/*
+ * FUNCIONES
+ */
+
+// busca en el buffer Serial CONECTADO_OK
 void estaConecado ()
 {
   if (Serial.find("CONECTADO_OK"))
   {
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.print("  - ONLINE -   ");
+    lcd.print("    - ONLINE -   ");
     if (debug > 1)
     {
       Serial.println(F("esp8266 CONECTADO"));
@@ -123,8 +105,6 @@ void estaConecado ()
     online = false;
   }
 }
-
-
 
 //lee los sensores y guarda los valores
 void leeSensores()
@@ -161,4 +141,31 @@ void leeSensores()
     Serial.print(F("Sensor S_1 "));
     Serial.println(valorSuelo_1);
   }
+}
+
+const String T_s0   = "Temp s0: ";
+const String T_s1	  = "Temp s1: ";
+const String H_s0   = " Hum s0: ";
+const String H_s1		= " Hum s1: ";
+const String L_s0	  = "Luz s0: ";
+const String L_s1		= "Luz s1: ";
+const String S_s0   = "H Suelo0: ";
+const String S_s1	  = "H Suelo0: ";
+const String P	   	= "%";
+const String C	    = "C";
+const String L			= "^";
+const String ESP			= " ";
+
+void pantalla( String renglon_1, float numero_1, String renglon_1_unidad, String renglon_2, float numero_2, String renglon_2_unidad )
+{
+	lcd.clear();					//limpia la pantalla
+    lcd.setCursor(0, 0);			//se posiciona en la columna 0 fila 0
+    lcd.print(renglon_1);			//imprime el string del renglon 1
+    lcd.print(numero_1);			//imprime el primer dato
+    lcd.print(renglon_1_unidad);	//imprime la unidad del dato
+    lcd.setCursor(0, 1);			//se posiciona en la columna 0 fila 1
+    lcd.print(renglon_2);			//imprime el string del renglon 2
+    lcd.print(numero_2);			//imprime el segundo dato
+    lcd.print(renglon_2_unidad);	//imprime la unidad del dato
+    delay(3500);					//espera 3.5 segundos
 }
