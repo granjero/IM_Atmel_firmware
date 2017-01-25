@@ -14,24 +14,28 @@
 #define SOIL_PIN_0         A1       //int     soilPin0 = A1;  //define el pin para sensor de humedad de tierra
 #define SOIL_PIN_1         A3       //int     soilPin1 = A3;  //define el pin para sensor de humedad de tierra
 
-// Pantalla LCD
-const String T_s0   = "Temp s0: ";
-const String T_s1	  = "Temp s1: ";
-const String H_s0   = " Hum s0: ";
-const String H_s1		= " Hum s1: ";
-const String L_s0	  = "Luz s0: ";
-const String L_s1		= "Luz s1: ";
-const String S_s0   = "H Suelo0: ";
-const String S_s1	  = "H Suelo0: ";
-const String P	   	= "%";
-const String C	    = "C";
-const String L			= "^";
-const String ESP			= " ";
+// Para la Funcion Pantalla
+#define T_s0	  "Temp s0: "
+#define T_s1	  "Temp s1: "
+#define H_s0    " Hum s0: "
+#define H_s1		" Hum s1: "
+#define L_s0	  " Luz s0: "
+#define L_s1		" Luz s1: "
+#define S_s0    "Suelo 0: "
+#define S_s1	  "Suelo 1: "
+#define P	   	  " %"
+#define C	      " C"
+#define L			  " ^"
 
 // Dispositivo
 const String  dispositivo = "e4da3b7fbbce2345d7772b0674a318d5"; /*5*/  //nombre del dispositivo Importante cambiarlo por cada dispositivo
 //const String  dispositivo = "TEST";
-const long  intervalo = 360000; //constante de espera para mandar el GET
+//tiempo entre envío a la DB
+//const long  intervalo = 360000; //constante de espera para mandar el GET
+const long intervalo = 30000; //constante de espera para mandar el GET mas corto para TEST
+
+unsigned long previousMillis = 0; //variable que va a guardar el valor de tiempo anterior para compararlo con el actual
+unsigned long currentMillis; //varialble que guardará el valor de tiempo actual
 
 int     debug = 0;
 float   hum_0;  // humedad del sensor 0
@@ -61,7 +65,7 @@ DHT dht_1(DHT_PIN_1, DHT_TYPE);
 void setup()
 {
   Serial.begin(115200); // inicia comunicacion serie a 115.200 baudios
-  Serial.setTimeout(1000); // define el tiempo de espera de la comunicacion serial
+  //Serial.setTimeout(1000); // define el tiempo de espera de la comunicacion serial
   lcd.begin(16,2); // inicia el lcd y setea el numero de columnas y de filas del lcd
   dht_0.begin(); // inicia el sensor0 AM2301
   dht_1.begin(); // inicia el sensor1 AM2301
@@ -69,15 +73,18 @@ void setup()
 
 void loop()
 {
+  i++;
   if (!online)
   {
     lcd.clear();
     lcd.setCursor(0, 0);
-    lcd.print("  - OFFLINE - ");
-    lcd.setCursor(0, 1);
+    lcd.print("OFFLINE buscar ");
     lcd.print(i);
-    i++;
-    estaConecado();
+    lcd.setCursor(0, 1);
+    lcd.print("WiFi IndoorMatic");
+
+    estaConectado();
+
     if (debug > 1)
     {
       Serial.println(F("Estamos OFFLINE (loop): "));
@@ -85,21 +92,58 @@ void loop()
   }
 
   //leeSensores();
-  /*renglon_1, numero_1, renglon_1_unidad, renglon_2, float numero_2, String renglon_2_unidad*/
-  pantalla(T_s0, i, C, T_s1, i+1, L);
+  pantalla(T_s0, i, C, T_s1, i+1, L); /*renglon_1, numero_1, renglon_1_unidad, renglon_2, float numero_2, String renglon_2_unidad*/
+  pantalla(H_s0, i*i, P, L_s1, i+1, L);
+
   Serial.print(F("Estatus Conexion: "));
   Serial.println(online);
   delay(1000);
+
+  enviaDatos();
 }
-
-
 
 /*
  * FUNCIONES
  */
+void enviaDatos()
+{
+  currentMillis = millis(); //asigna el valor de millis() a la variable currentMillis
 
+  if (previousMillis > currentMillis) // si previousMillis es mayor a currentMillis quiere decir que millis() volvio a cero porque se lleno entonces vuelvo tambien a cero previousMillis
+  {
+    previousMillis = 0;
+  }
+
+  if (currentMillis - previousMillis >= intervalo) //cuando la diferencia entre previousMillis y currentMillis es mayor o igual al intervalo se envian los datos
+  {
+    previousMillis = currentMillis;
+    Serial.print("Es tiempo...");
+    String GET = "GET http://www.indoormatic.com.ar/im/im.php";
+    GET += "?1a1dc91c907325c69271ddf0c944bc72";
+    GET += "&disp=";
+    GET += dispositivo;
+    GET += "&t0=";
+    GET += temp_0;
+    GET += "&h0=";
+    GET += hum_0;
+    GET += "&t1=";
+    GET += temp_1;
+    GET += "&h1=";
+    GET += hum_1;
+    GET += "&luz=";
+    GET += valorLuz_0;
+    GET += "&luz1=";
+    GET += valorLuz_1;
+    GET += "&ht=";
+    GET += valorSuelo_0;
+    GET += "&ht1=";
+    GET += valorSuelo_1;
+    GET += "&debug=";
+    GET += debug;
+  }
+}
 // busca en el buffer Serial CONECTADO_OK
-void estaConecado ()
+void estaConectado ()
 {
   if (Serial.find("CONECTADO_OK"))
   {
@@ -159,18 +203,17 @@ void leeSensores()
   }
 }
 
-
-
+// Funcion que escribe dos renglones en la pantalla segun los parametros.
 void pantalla( String renglon_1, float numero_1, String renglon_1_unidad, String renglon_2, float numero_2, String renglon_2_unidad )
 {
-	lcd.clear();					//limpia la pantalla
-    lcd.setCursor(0, 0);			//se posiciona en la columna 0 fila 0
-    lcd.print(renglon_1);			//imprime el string del renglon 1
-    lcd.print(numero_1);			//imprime el primer dato
-    lcd.print(renglon_1_unidad);	//imprime la unidad del dato
-    lcd.setCursor(0, 1);			//se posiciona en la columna 0 fila 1
-    lcd.print(renglon_2);			//imprime el string del renglon 2
-    lcd.print(numero_2);			//imprime el segundo dato
-    lcd.print(renglon_2_unidad);	//imprime la unidad del dato
-    delay(3500);					//espera 3.5 segundos
+	lcd.clear();                  //limpia la pantalla
+  lcd.setCursor(0, 0);          //se posiciona en la columna 0 fila 0
+  lcd.print(renglon_1);         //imprime el string del renglon 1
+  lcd.print(numero_1);          //imprime el primer dato
+  lcd.print(renglon_1_unidad);  //imprime la unidad del dato
+  lcd.setCursor(0, 1);          //se posiciona en la columna 0 fila 1
+  lcd.print(renglon_2);			    //imprime el string del renglon 2
+  lcd.print(numero_2);			    //imprime el segundo dato
+  lcd.print(renglon_2_unidad);	//imprime la unidad del dato
+  delay(3500);       					  //espera 3.5 segundos
 }
