@@ -28,16 +28,19 @@
 #define L			  " ^"
 
 // Dispositivo
-const String  dispositivo = "e4da3b7fbbce2345d7772b0674a318d5"; /*5*/  //nombre del dispositivo Importante cambiarlo por cada dispositivo
-//const String  dispositivo = "TEST";
+//const String  dispositivo = "e4da3b7fbbce2345d7772b0674a318d5"; /*5*/  //nombre del dispositivo Importante cambiarlo por cada dispositivo
+const String  dispositivo = "TEST";
 //tiempo entre envío a la DB
 //const long  intervalo = 360000; //constante de espera para mandar el GET
-const long intervalo = 30000; //constante de espera para mandar el GET mas corto para TEST
+const long intervalo = 15000; //constante de espera para mandar el GET mas corto para TEST
+const long esperaOffline = 1000; //constante de espera para consultar estado WiFi
+
 
 unsigned long previousMillis = 0; //variable que va a guardar el valor de tiempo anterior para compararlo con el actual
 unsigned long currentMillis; //varialble que guardará el valor de tiempo actual
 
 int     debug = 0;
+
 float   hum_0;  // humedad del sensor 0
 float   hum_1;  // humedad del sensor 1
 float   temp_0;  // temperatura del sensor 0
@@ -58,6 +61,7 @@ int     i = 0;
 boolean online = false;
 
 // Construct de librerias del LCD y los sensores DHT
+//LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
 LiquidCrystal lcd(13, 12, 11, 10, 9, 8); //inicializa la libreria con los numeros de pines utilizados
 DHT dht_0(DHT_PIN_0, DHT_TYPE); //inicializa la libreria para el pin
 DHT dht_1(DHT_PIN_1, DHT_TYPE);
@@ -92,12 +96,26 @@ void loop()
   }
 
   //leeSensores();
+  // Esto es mientras no tenga sensores
   pantalla(T_s0, i, C, T_s1, i+1, L); /*renglon_1, numero_1, renglon_1_unidad, renglon_2, float numero_2, String renglon_2_unidad*/
   pantalla(H_s0, i*i, P, L_s1, i+1, L);
 
-  Serial.print(F("Estatus Conexion: "));
-  Serial.println(online);
-  delay(1000);
+  //Serial.print(F("Estatus Conexion: "));
+  //Serial.println(online);
+  delay(10);
+
+  hum_0        = i;
+  temp_0       = i * 2;
+  hum_1        = i * 3;
+  temp_1       = i * 4;
+  luz_0        = i * 5;
+  valorLuz_0   = i * 6;
+  luz_1        = i * 7;
+  valorLuz_1   = i * 8;
+  suelo_0      = i * 9;
+  valorSuelo_0 = i * 10;
+  suelo_1      = i * i;
+  valorSuelo_1 = i * i - i;
 
   enviaDatos();
 }
@@ -107,6 +125,10 @@ void loop()
  */
 void enviaDatos()
 {
+  if (!online)
+  {
+    return;
+  }
   currentMillis = millis(); //asigna el valor de millis() a la variable currentMillis
 
   if (previousMillis > currentMillis) // si previousMillis es mayor a currentMillis quiere decir que millis() volvio a cero porque se lleno entonces vuelvo tambien a cero previousMillis
@@ -117,9 +139,8 @@ void enviaDatos()
   if (currentMillis - previousMillis >= intervalo) //cuando la diferencia entre previousMillis y currentMillis es mayor o igual al intervalo se envian los datos
   {
     previousMillis = currentMillis;
-    Serial.print("Es tiempo...");
-    String GET = "GET http://www.indoormatic.com.ar/im/im.php";
-    GET += "?1a1dc91c907325c69271ddf0c944bc72";
+    //Serial.println("Es tiempo...");
+    String GET = "<?1a1dc91c907325c69271ddf0c944bc72";
     GET += "&disp=";
     GET += dispositivo;
     GET += "&t0=";
@@ -140,19 +161,25 @@ void enviaDatos()
     GET += valorSuelo_1;
     GET += "&debug=";
     GET += debug;
+    GET += ">";
+
+    Serial.print(GET);
   }
 }
 // busca en el buffer Serial CONECTADO_OK
 void estaConectado ()
 {
+  Serial.print("[ESP_status]");
+
   if (Serial.find("CONECTADO_OK"))
   {
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print("    - ONLINE -   ");
+    delay(250);
     if (debug > 1)
     {
-      Serial.println(F("esp8266 CONECTADO"));
+      Serial.println(F("DBG_esp8266_CONECTADO"));
     }
     online = true;
   }
