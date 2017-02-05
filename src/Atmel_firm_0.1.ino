@@ -56,7 +56,7 @@ const long intervalo = 60000; //constante de espera para mandar el GET mas corto
 unsigned long previousMillis = 0; //variable que va a guardar el valor de tiempo anterior para compararlo con el actual
 unsigned long currentMillis; //varialble que guardará el valor de tiempo actual
 
-int     debug = 2;
+int     debug = 0;
 
 float   hum_0 = 999;  // humedad del sensor 0
 float   hum_1 = 999;  // humedad del sensor 1
@@ -79,8 +79,8 @@ int     i = 0;
 String stringDelSerial = "";         // a string to hold incoming data
 
 boolean stringCompleta  = false;  // whether the string is complete
-boolean online          = false;  // si esta ONLINE
-boolean exito           = false;  //Si la web devolvio exito
+boolean online          = false;  // bandera si esta ONLINE
+boolean exito           = false;  // bandera si la web devolvio exito
 
 /****************************************************
 * Construct de librerias del LCD y los sensores DHT *
@@ -123,6 +123,7 @@ void loop()
 {
   escuchaSerial();
   analizaComando(stringDelSerial);
+
   if (!online)
   {
     if (debug > 1)
@@ -139,14 +140,23 @@ void loop()
       //leeSensores();
       lcdSensores();
     }
-
   }
+
   else
   {
+    if (debug > 1)
+    {
+      Serial.print("\n");
+      Serial.println(F("loop - > if(online)"));
+    }
     //leeSensores();
     lcdSensores();
-    lcdEnviandoDatos();
     enviaDatos();
+    if( exito )
+    {
+      exito = false;
+      lcdExito();
+    }
   }
 }
 
@@ -162,6 +172,7 @@ void enviaDatos()
   {
     return;
   }
+
   currentMillis = millis(); //asigna el valor de millis() a la variable currentMillis
 
   if (previousMillis > currentMillis) // si previousMillis es mayor a currentMillis quiere decir que millis() volvio a cero porque se lleno entonces vuelvo tambien a cero previousMillis
@@ -171,6 +182,7 @@ void enviaDatos()
 
   if (currentMillis - previousMillis >= intervalo) //cuando la diferencia entre previousMillis y currentMillis es mayor o igual al intervalo se envian los datos
   {
+    lcdEnviandoDatos();
     previousMillis = currentMillis;
     String GET = "<?1a1dc91c907325c69271ddf0c944bc72";
     GET += "&disp=";
@@ -195,8 +207,8 @@ void enviaDatos()
     GET += debug;
     GET += ">";
 
+    delay(1000);
     Serial.print(GET);
-    delay(100);
 
     /*if (Serial.find("EXITO"))
     {
@@ -209,7 +221,7 @@ void enviaDatos()
 void estaConectado ()
 {
   //pregunta al ESP si esta conectato
-  delay(1000);
+  delay(2000);
   Serial.print("[ESP_status]");
   //Si llega un OK
   /*if (Serial.find("CONECTADO_OK"))
@@ -321,10 +333,11 @@ void lcdSensores( )
 {
   if( debug > 1)
   {
+    delay(1000);
     Serial.print("\n");
     Serial.println(F("lcdSensores delay 3000ms por gurpo de sensor"));
   }
-  i = 0;
+  //i = 0;
 
   #ifdef DHT_PIN_0
     lcd.clear();
@@ -387,6 +400,7 @@ void lcdOFFLINE()
 {
   if( debug > 1)
   {
+    delay(1000);
     Serial.print("\n");
     Serial.println(F("lcdOFFLINE delay 500ms"));
   }
@@ -412,6 +426,7 @@ void lcdEnviandoDatos()
 {
   if( debug > 1)
   {
+    delay(1000);
     Serial.print("\n");
     Serial.println(F("lcdEnviandoDatos delay 500ms"));
   }
@@ -430,6 +445,7 @@ void lcdBienvenida()
 {
   if( debug > 1)
   {
+    delay(1000);
     Serial.print("\n");
     Serial.println(F("lcdBienvenida delay 7500ms"));
   }
@@ -450,10 +466,12 @@ void lcdBienvenida()
   delay(2500);
 }
 
+//escibe en la pantalla datos recibidos
 void lcdExito()
 {
   if( debug > 1)
   {
+    delay(1000);
     Serial.print("\n");
     Serial.println(F("lcdExito delay 1000ms"));
   }
@@ -463,6 +481,23 @@ void lcdExito()
   lcd.setCursor(0, 1);
   lcd.print("Recibidos  O.K.");
   delay(1000);
+}
+
+//escibe ONLINE en la pantalla datos recibidos
+void lcdONLINE()
+{
+  if( debug > 1)
+  {
+    delay(1000);
+    Serial.print("\n");
+    Serial.println(F("lcdOnline delay 1000ms"));
+  }
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("   - ONLINE -   ");
+  lcd.setCursor(0, 1);
+  lcd.print(" INDOOR - MATIC ");
+  delay(3000);
 }
 
 /***********************************
@@ -475,7 +510,7 @@ void escuchaSerial()
     stringDelSerial = Serial.readString();
   }
   stringCompleta = true;
-  if(debug > 1)
+  if(debug > 0)
   {
     Serial.print("\n");
     Serial.print("string del Serial = ");
@@ -485,17 +520,20 @@ void escuchaSerial()
 
 void analizaComando( String comando )
 {
+  comando.trim();
   if (stringCompleta)
   {
     stringCompleta = false;
     if (comando.equals("CONECTADO_OK"))
     {
       online = true;
+      lcdONLINE();
     }
     if (comando.equals("EXITO"))
     {
       exito = true;
     }
+
   }
   stringDelSerial = "";
 }
