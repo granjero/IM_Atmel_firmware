@@ -31,8 +31,8 @@ const String  dispositivo = "a87ff679a2f3e71d9181a67b7542122c"; /*4*/  //nombre 
 //const String  dispositivo = "TEST";
 const int     numeroSerie = 4;
 //tiempo entre envío a la DB
-const long  intervalo = 360000; //constante de espera para mandar el GET
-const long  intervaloSensores = 5000; //constante de espera para mandar el GET
+const long    intervalo = 360000; //constante de espera para mandar el GET
+const long    intervaloSensores = 5000; //constante de espera para mandar el GET
 //const long intervalo = 60000; //constante de espera para mandar el GET mas corto para TEST
 
 /**************************************************
@@ -53,28 +53,29 @@ const long  intervaloSensores = 5000; //constante de espera para mandar el GET
 /********************
 * V A R I A B L E S *
 ********************/
-unsigned long previousMillisEnviaDatos = 0; //variable que va a guardar el valor de tiempo anterior para compararlo con el actual
+unsigned long previousMillisEnviaDatos  = 0; //variable que va a guardar el valor de tiempo anterior para compararlo con el actual
 unsigned long previousMillisLeeSensores = 0; //variable que va a guardar el valor de tiempo anterior para compararlo con el actual
+unsigned long previousMillisRespuesta   = 0; //variable que va a guardar el valor de tiempo anterior para compararlo con el actual
+
 unsigned long currentMillis; //varialble que guardará el valor de tiempo actual
 
-int     debug = 0;
-
+int debug = 0;
 
 float hum_0         = 999;  // humedad del sensor 0
 float hum_1         = 999;  // humedad del sensor 1
 float temp_0        = 999;  // temperatura del sensor 0
 float temp_1        = 999;  // temperatura del sensor 0
 
-int luz_0           = 999; //valor analógico del pin
-int luz_1           = 999; //valor analógico del pin
-int valorLuz_0      = 999; //valor mapeado
-int valorLuz_1      = 999; //valor mapeado
+int luz_0           = 999;  //valor analógico del pin
+int luz_1           = 999;  //valor analógico del pin
+int valorLuz_0      = 999;  //valor mapeado
+int valorLuz_1      = 999;  //valor mapeado
 
-int suelo_0         = 999; //valor analogico del pin
-int suelo_1         = 999; //valor analogico del pin
-float valorSuelo_0  = 999; //valor mapeado
-float valorSuelo_1  = 999; //valor mapeado
-int dbg             = 0; //
+int suelo_0         = 999;  //valor analogico del pin
+int suelo_1         = 999;  //valor analogico del pin
+float valorSuelo_0  = 999;  //valor mapeado
+float valorSuelo_1  = 999;  //valor mapeado
+int dbg             = 0;    //
 
 int i               = 0;
 
@@ -82,9 +83,13 @@ String stringDelSerial  = "";         // a string to hold incoming data
 
 boolean stringCompleta      = false;  // whether the string is complete
 boolean online              = false;  // bandera si esta ONLINE
-boolean exito               = true;  // bandera si la web devolvio exito
+boolean exito               = true;   // bandera si la web devolvio exito
 boolean esperandoRespuesta  = false;
 boolean errorLecturaSensor  = false;
+boolean datos               = false;
+boolean sensores            = false;
+boolean respuesta           = false;
+
 /****************************************************
 * Construct de librerias del LCD y los sensores DHT *
 ****************************************************/
@@ -153,7 +158,7 @@ void loop()
       Serial.println(F("loop - > if(online)"));
     }
 
-
+    esperaRespuesta();
     enviaDatos();
     leeSensores();
     lcdSensores();
@@ -215,6 +220,8 @@ void enviaDatos()
     //delay(500);
     Serial.print(GET);
     esperandoRespuesta = true;
+    previousMillisRespuesta = millis();
+
   }
 }
 
@@ -225,6 +232,32 @@ void estaConectado ()
   delay(2000);
   Serial.print("[ESP_status]");
   esperandoRespuesta = true;
+  previousMillisRespuesta = millis();
+}
+
+void esperaRespuesta()
+{
+  if(esperandoRespuesta)
+  {
+    currentMillis = millis(); //asigna el valor de millis() a la variable currentMillis
+
+    if (previousMillisRespuesta > currentMillis) // si previousMillisEnviaDatos es mayor a currentMillis quiere decir que millis() volvio a cero porque se lleno entonces vuelvo tambien a cero previousMillisEnviaDatos
+    {
+      previousMillisRespuesta = 0;
+    }
+
+    if ( currentMillis - previousMillisRespuesta >= intervalo )//cuando la diferencia entre previousMillisEnviaDatos y currentMillis es mayor o igual al intervalo se envian los datos
+    {
+      //se iguala currentMillis a previousMillisRespuesta donde diga esperandoRespuesta = true
+      //previousMillisRespuesta = currentMillis;
+      esperandoRespuesta = false;
+      dbg = 66;
+    }
+  }
+  else
+  {
+    return;
+  }
 }
 
 // lee los sensores y guarda los valores en sus variables.
@@ -239,6 +272,7 @@ void leeSensores()
 
   if ( ( currentMillis - previousMillisLeeSensores >= intervaloSensores ) || errorLecturaSensor )//cuando la diferencia entre previousMillisLeeSensores y currentMillis es mayor o igual al intervalo se envian los datos
   {
+    previousMillisLeeSensores = currentMillis;
     if (errorLecturaSensor)
     {
       delay(3000);
@@ -322,6 +356,38 @@ void leeSensores()
   }
 }
 
+// espera
+void esperas( unsigned long previousMillisQuien, String bandera )
+{
+  currentMillis = millis(); //asigna el valor de millis() a la variable currentMillis
+
+  if (previousMillisQuien > currentMillis) // si previousMillisEnviaDatos es mayor a currentMillis quiere decir que millis() volvio a cero porque se lleno entonces vuelvo tambien a cero previousMillisEnviaDatos
+  {
+    previousMillisEnviaDatos  = 0;
+    previousMillisRespuesta   = 0;
+    previousMillisLeeSensores = 0;
+  }
+
+  if ( currentMillis - previousMillisQuien >= intervalo  )//cuando la diferencia entre previousMillisEnviaDatos y currentMillis es mayor o igual al intervalo se envian los datos
+  {
+    if (bandera == "datos")
+    {
+      previousMillisEnviaDatos = currentMillis;
+      datos = true;
+    }
+    if (bandera == "sensores")
+    {
+      previousMillisLeeSensores = currentMillis;
+      sensores = true;
+    }
+    if (bandera == "respuesta")
+    {
+      previousMillisRespuesta = currentMillis;
+      respuesta = true;
+    }
+  }
+}
+
 /******************************/
 /* F U N C I O N E S   L C D  */
 /******************************/
@@ -339,6 +405,7 @@ void lcdSensores( )
   {
     return;
   }
+
   #ifdef DHT_PIN_0
     lcd.clear();
     lcd.setCursor(0, 0);
@@ -530,7 +597,7 @@ void lcdErrorLeeSensores()
   lcd.print(" - E R R O R -  ");
   lcd.setCursor(0, 1);
   lcd.print("S E N S O R E S ");
-  delay(3000);
+  delay(1000);
 }
 
 
@@ -564,6 +631,7 @@ void analizaComando( String comando )
     if (comando.equals("CONECTADO_OK"))
     {
       online = true;
+      exito = true;
       esperandoRespuesta = false;
       lcdONLINE();
     }
@@ -586,6 +654,7 @@ void analizaComando( String comando )
 
     else
     {
+      exito = false;
       esperandoRespuesta = false;
     }
   }
