@@ -25,17 +25,19 @@
 #define L			  " ^"
 
 /**************************************************
+ *                                                *
  * C O N S T A N T E S - Relativas al Dispositivo *
+ *                                                *
  *************************************************/
-const String  dispositivo = "a87ff679a2f3e71d9181a67b7542122c"; /*4*/  //nombre del dispositivo Importante cambiarlo por cada dispositivo
-//const String  dispositivo = "TEST";
-const int     numeroSerie = 4;
+ //const String  dispositivo = "TEST";
+const String  dispositivo = "e4da3b7fbbce2345d7772b0674a318d5"; /*5*/  //nombre del dispositivo Importante cambiarlo por cada dispositivo
+const int     numeroSerie = 5;
+
 //tiempo entre envío a la DB
-//const long    intervaloDatos      = 360000; //constante de espera para mandar el GET
-const long    intervaloDatos      = 45000; //constante de espera para mandar el GET mas corto para TEST
-const long    intervaloSensores   = 2000; //constante de espera para mandar el GET
-const long    intervaloRespuesta  = 10000; //constante de espera para mandar el GET
-//const long    intervaloRespuesta  = 100; //constante de espera para mandar el GET
+//const long    intervaloDatos      = 45000; //constante de espera para mandar el GET mas corto para TEST
+const long    intervaloDatos      = 360000; //constante de espera para mandar el GET
+const long    intervaloSensores   = 2000; //constante de espera para volver a leer los sensores
+const long    intervaloRespuesta  = 10000; //constante de espera para dar por finalizado el tiempo de espera
 
 /**************************************************
 * C O N S T A N T E S - Sensores conectados al IM *
@@ -50,7 +52,7 @@ const long    intervaloRespuesta  = 10000; //constante de espera para mandar el 
 #define LIGHT_SENSOR_PIN_0 A2       //define el pin para el Photo-resistor
 #define LIGHT_SENSOR_PIN_1 A0     //define el pin para el Photo-resistor
 #define SOIL_PIN_0         A1       //define el pin para sensor de humedad de tierra
-//#define SOIL_PIN_1         A3     //define el pin para sensor de humedad de tierra
+#define SOIL_PIN_1         A3     //define el pin para sensor de humedad de tierra
 
 /********************
 * V A R I A B L E S *
