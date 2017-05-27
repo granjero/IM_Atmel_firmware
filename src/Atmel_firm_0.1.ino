@@ -29,9 +29,10 @@
  * C O N S T A N T E S - Relativas al Dispositivo *
  *                                                *
  *************************************************/
- //const String  dispositivo = "TEST";
-const String  dispositivo = "e4da3b7fbbce2345d7772b0674a318d5"; /*5*/  //nombre del dispositivo Importante cambiarlo por cada dispositivo
-const int     numeroSerie = 5;
+//const String  dispositivo = "TEST";
+/*quito la constante porque se la paso al esp que va a poner la macadd*/
+//const String  dispositivo = "e4da3b7fbbce2345d7772b0674a318d5"; /*5*/  //nombre del dispositivo Importante cambiarlo por cada dispositivo
+//const int     numeroSerie = 5;
 
 //tiempo entre envío a la DB
 //const long    intervaloDatos      = 45000; //constante de espera para mandar el GET mas corto para TEST
@@ -44,19 +45,21 @@ const long    intervaloRespuesta  = 10000; //constante de espera para dar por fi
 *                                                 *
 * Comentar los sensores que no estén presentes    *
 **************************************************/
+
 //#define DHT_TYPE           DHT21    // DHT 22  (AM2302)
-#define DHT_TYPE           DHT22    // DHT 22  (AM2302)
-#define DHT_PIN_0          2        // pin al que va el cable de dato del sensor0 de temperatura
-#define DHT_PIN_1          3      // pin al que va el cable de dato del sensor1 de temperatura
+//#define DHT_TYPE           DHT22    // DHT 22  (AM2302)
+//#define DHT_PIN_0          2        // pin al que va el cable de dato del sensor0 de temperatura
+//#define DHT_PIN_1          3      // pin al que va el cable de dato del sensor1 de temperatura
 //#define LIGHT_SENSOR_PIN_0 A0       //PARA EL DE PEDRO
 #define LIGHT_SENSOR_PIN_0 A2       //define el pin para el Photo-resistor
-#define LIGHT_SENSOR_PIN_1 A0     //define el pin para el Photo-resistor
-#define SOIL_PIN_0         A1       //define el pin para sensor de humedad de tierra
-#define SOIL_PIN_1         A3     //define el pin para sensor de humedad de tierra
+//#define LIGHT_SENSOR_PIN_1 A0     //define el pin para el Photo-resistor
+//#define SOIL_PIN_0         A1       //define el pin para sensor de humedad de tierra
+//#define SOIL_PIN_1         A3     //define el pin para sensor de humedad de tierra
 
 /********************
 * V A R I A B L E S *
 ********************/
+
 unsigned long previousMillisEnviaDatos  = 0; //variable que va a guardar el valor de tiempo anterior para compararlo con el actual
 unsigned long previousMillisLeeSensores = 0; //variable que va a guardar el valor de tiempo anterior para compararlo con el actual
 unsigned long previousMillisRespuesta   = 0; //variable que va a guardar el valor de tiempo anterior para compararlo con el actual
@@ -97,7 +100,7 @@ boolean banderaTiempoRespuesta  = false;
 /****************************************************
 * Construct de librerias del LCD y los sensores DHT *
 ****************************************************/
-//LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
+
 LiquidCrystal lcd(13, 12, 11, 10, 9, 8); //inicializa la libreria con los numeros de pines utilizados
 
 #ifdef DHT_PIN_0
@@ -196,9 +199,9 @@ void enviaDatos()
     lcdEnviandoDatos();
     //previousMillisEnviaDatos = currentMillis; // setea el valor de previousMillis a currentMillis
 
-    String GET = "<?1a1dc91c907325c69271ddf0c944bc72";
-    GET += "&disp=";
-    GET += dispositivo;
+    String GET = "<";
+    //GET += "&disp=";
+    //GET += dispositivo;
     GET += "&t0=";
     GET += temp_0;
     GET += "&h0=";
@@ -231,6 +234,7 @@ void enviaDatos()
 }
 
 // Pregunta al Wifi si esta conectado
+// to do revisar
 void estaConectado ()
 {
   Serial.print("[ESP_status]");
@@ -314,22 +318,23 @@ void leeSensores()
 
     #ifdef LIGHT_SENSOR_PIN_0
       luz_0        = analogRead(LIGHT_SENSOR_PIN_0);
-      valorLuz_0   = map(luz_0,0,1024,0,100);
+      valorLuz_0   = map(luz_0,0,1023,0,100);
     #endif
 
     #ifdef LIGHT_SENSOR_PIN_1
       luz_1        = analogRead(LIGHT_SENSOR_PIN_1);
-      valorLuz_1   = map(luz_1,0,1024,0,100);
+      valorLuz_1   = map(luz_1,0,1023,0,100);
     #endif
 
     #ifdef SOIL_PIN_0
       suelo_0      = analogRead(SOIL_PIN_0);
-      valorSuelo_0 = map(suelo_0,0,1024,100,0);
+      //valorSuelo_0 = map(suelo_0,0,1023,100,0); //con el modulo comprado
+      valorSuelo_0 = map(suelo_0,0,1023,0,100); // con el casero
     #endif
 
     #ifdef SOIL_PIN_1
       suelo_1      = analogRead(SOIL_PIN_1);
-      valorSuelo_1 = map(suelo_1,0,1024,100,0);
+      //valorSuelo_1 = map(suelo_1,0,1023,100,0);
     #endif
   }
 
@@ -591,6 +596,7 @@ void lcdEnviandoDatos()
 }
 
 // escibe el texto de bienvenida para el Setup
+// to do obtener la mac del esp
 void lcdBienvenida()
 {
   if( debug > 1)
@@ -612,7 +618,7 @@ void lcdBienvenida()
   //lcd.print(i);
   lcd.setCursor(0, 1);
   lcd.print("Num. Serie: ");
-  lcd.print(numeroSerie);
+//  lcd.print(numeroSerie);
   delay(2500);
 }
 
@@ -754,6 +760,13 @@ void analizaComando( String comando )
       esperandoRespuesta = false;
       dbg += 1;
       lcdFracaso();
+    }
+
+    else if( comando.startsWith( "<" ) && comando.endsWith( ">" ) )
+    {
+      //datoRecibido = true;
+      comando = comando.substring( 1, comando.length() - 1);
+      String  dispositivo = comando;
     }
 
     else
