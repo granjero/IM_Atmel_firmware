@@ -34,8 +34,7 @@
 //const String  dispositivo = "e4da3b7fbbce2345d7772b0674a318d5"; /*5*/  //nombre del dispositivo Importante cambiarlo por cada dispositivo
 //const int     numeroSerie = 5;
 
-//tiempo entre envío a la DB
-//const long    intervaloDatos      = 45000; //constante de espera para mandar el GET mas corto para TEST
+//tiempos
 const long    intervaloDatos      = 360000; //constante de espera para mandar el GET
 const long    intervaloSensores   = 2000; //constante de espera para volver a leer los sensores
 const long    intervaloRespuesta  = 10000; //constante de espera para dar por finalizado el tiempo de espera
@@ -47,13 +46,13 @@ const long    intervaloRespuesta  = 10000; //constante de espera para dar por fi
 **************************************************/
 
 //#define DHT_TYPE           DHT21    // DHT 22  (AM2302)
-//#define DHT_TYPE           DHT22    // DHT 22  (AM2302)
-//#define DHT_PIN_0          2        // pin al que va el cable de dato del sensor0 de temperatura
+#define DHT_TYPE           DHT22    // DHT 22  (AM2302)
+#define DHT_PIN_0          2        // pin al que va el cable de dato del sensor0 de temperatura
 //#define DHT_PIN_1          3      // pin al que va el cable de dato del sensor1 de temperatura
 //#define LIGHT_SENSOR_PIN_0 A0       //PARA EL DE PEDRO
 #define LIGHT_SENSOR_PIN_0 A2       //define el pin para el Photo-resistor
 //#define LIGHT_SENSOR_PIN_1 A0     //define el pin para el Photo-resistor
-//#define SOIL_PIN_0         A1       //define el pin para sensor de humedad de tierra
+#define SOIL_PIN_0         A1       //define el pin para sensor de humedad de tierra
 //#define SOIL_PIN_1         A3     //define el pin para sensor de humedad de tierra
 
 /********************
@@ -87,13 +86,14 @@ int dbg             = 0;    //
 int i               = 0;
 
 String stringDelSerial  = "";         // a string to hold incoming data
+String mac              = "";         // si todo sale bien aca vendra la mac del esp8266
 
 boolean stringCompleta          = false;  // whether the string is complete
 boolean online                  = false;  // bandera si esta ONLINE
 boolean exito                   = true;   // bandera si la web devolvio exito
 boolean esperandoRespuesta      = false;
 boolean errorLecturaSensor      = false;
-boolean banderaTiempoDatos      = false;
+boolean banderaTiempoDatos      = true;
 boolean banderaTiempoSensores   = false;
 boolean banderaTiempoRespuesta  = false;
 
@@ -118,6 +118,7 @@ void setup()
 {
   Serial.begin(115200); // inicia comunicacion serie a 115.200 baudios
   //Serial.setTimeout(1000); // define el tiempo de espera de la comunicacion serial
+
   lcd.begin(16,2); // inicia el lcd y setea el numero de columnas y de filas del lcd
 
   #ifdef DHT_PIN_0
@@ -129,6 +130,7 @@ void setup()
   #endif
 
   lcdBienvenida();
+  delay(2500);
 }
 
 /*******************************************
@@ -138,38 +140,20 @@ void loop()
 {
   escuchaSerial();
   analizaComando(stringDelSerial);
-  esperaRespuesta();
 
   if (!online)
   {
-    if (debug > 1)
-    {
-      Serial.print("\n");
-      Serial.println(F("loop - > if(!online)"));
-    }
-
-    i++;
-    if ( i % 5 == 0)
-    {
+      i++;
+      lcdOFFLINE();
+      i++;
+      lcdOFFLINE();
       leeSensores();
-      // Serial.print("Loop i % 5 -> i = ");
-      // Serial.println(i);
-      // Serial.print("Esperando respuesta = ");
-      // Serial.println(esperandoRespuesta);
-      lcdSensoresOffline();
-    }
-    lcdOFFLINE();
-    estaConectado();
+      lcdSensores();
+      estaConectado();
   }
 
-  else
+  if (online)
   {
-    if (debug > 1)
-    {
-      Serial.print("\n");
-      Serial.println(F("loop - > if(online)"));
-    }
-
     enviaDatos();
     leeSensores();
     lcdSensores();
@@ -177,9 +161,16 @@ void loop()
 }
 
 
+
+/***********************************************************/
+/***********************************************************/
+/***********************************************************/
 /************************************************************
  * F U N C I O N E S - Cosas que se usan en Setup y en Loop *
  ***********************************************************/
+ /***********************************************************/
+ /***********************************************************/
+ /***********************************************************/
 
 // Genera el string a enviar
 void enviaDatos()
@@ -224,12 +215,6 @@ void enviaDatos()
 
     //delay(500);
     Serial.print(GET);
-    if (!esperandoRespuesta)
-    {
-      //Serial.println("esperandoRespuesta = TRUE en en funcion enviaDatos");
-      esperandoRespuesta = true;
-      previousMillisRespuesta = millis();
-    }
   }
 }
 
@@ -238,58 +223,15 @@ void enviaDatos()
 void estaConectado ()
 {
   Serial.print("[ESP_status]");
-  delay(2000);
-  //Serial.print("Funcion estaConectado -> ");
-  if (esperandoRespuesta)
-  {
-    return;
-  }
-
-  else
-  {
-    //Serial.println("esperandoRespuesta = TRUE en en funcion estaConectado");
-    esperandoRespuesta = true;
-    previousMillisRespuesta = millis();
-    //Serial.println("reset de milllis respuesta");
-  }
-}
-
-// tiuempo de espera hasta desistir
-void esperaRespuesta()
-{
-  //Serial.print("Funcion esperaRespuesta -> variable esperandoRespuesta = ");
-  //Serial.println(esperandoRespuesta);
-
-  //Serial.print("Funcion esperaRespuesta -> esperandoRespuesta = ");
-  //Serial.println(esperandoRespuesta);
-
-  if(esperandoRespuesta)
-  {
-    esperas("respuesta", previousMillisRespuesta);
-    if ( banderaTiempoRespuesta )//cuando la diferencia entre previousMillisEnvia y currentMillis es mayor o igual al intervalo se envian los datos
-    {
-      //Serial.println("esperandoRespuesta = FALSE Tiempo AGOTADO");
-
-      banderaTiempoRespuesta  = false;
-      esperandoRespuesta      = false;
-      dbg                     = 66;
-      lcdTiempoAgotado();
-    }
-  }
-  else
-  {
-    return;
-  }
 }
 
 // lee los sensores y guarda los valores en sus variables.
 void leeSensores()
 {
   esperas("sensores", previousMillisLeeSensores);
-  if ( banderaTiempoSensores || errorLecturaSensor )//cuando la diferencia entre previousMillisLeeSensores y currentMillis es mayor o igual al intervalo se envian los datos
+  if ( banderaTiempoSensores || errorLecturaSensor )//cuando la diferencia entre previousMillisLeeSensores y currentMillis es mayor o igual al intervalo entra al if
   {
     banderaTiempoSensores = false;
-    //previousMillisLeeSensores = currentMillis;
     if (errorLecturaSensor)
     {
       delay(3000);
@@ -334,43 +276,22 @@ void leeSensores()
 
     #ifdef SOIL_PIN_1
       suelo_1      = analogRead(SOIL_PIN_1);
-      //valorSuelo_1 = map(suelo_1,0,1023,100,0);
+      //valorSuelo_1 = map(suelo_1,0,1023,100,0); //con el modulo comprado
+      valorSuelo_1 = map(suelo_1,0,1023,0,100); // con el casero
     #endif
-  }
-
-  if (debug > 1)
-  {
-    Serial.print(F("Sensor H_0 "));
-    Serial.println(hum_0);
-    Serial.print(F("Sensor H_1 "));
-    Serial.println(hum_1);
-    Serial.print(F("Sensor T_0 "));
-    Serial.println(temp_0);
-    Serial.print(F("Sensor T_1 "));
-    Serial.println(temp_1);
-    Serial.print(F("Sensor L_0 "));
-    Serial.println(valorLuz_0);
-    Serial.print(F("Sensor L_1 "));
-    Serial.println(valorLuz_1);
-    Serial.print(F("Sensor S_0 "));
-    Serial.println(valorSuelo_0);
-    Serial.print(F("Sensor S_1 "));
-    Serial.println(valorSuelo_1);
   }
 }
 
 // esperas
 void esperas( String bandera, unsigned long previousMillisQuien )
 {
-  //Serial.print("Funcion esperas -> badera = ");
-  //Serial.print(bandera);
-  //Serial.print(" previousMillisQuien = ");
-  //Serial.println(previousMillisQuien);
+  //asigna el valor de millis() a la variable currentMillis
+  currentMillis = millis();
 
-  currentMillis = millis(); //asigna el valor de millis() a la variable currentMillis
-
-  if (previousMillisQuien > currentMillis) // si previousMillis es mayor a currentMillis quiere decir que millis() volvio a cero porque se lleno entonces vuelvo tambien a cero previousMillis
-  {
+  // si previousMillis es mayor a currentMillis quiere decir
+  // que millis() volvio a cero porque se le lleno el buffer
+  // entonces se resetan los previousMillis
+  if (previousMillisQuien > currentMillis)   {
     previousMillisEnviaDatos  = 0;
     previousMillisRespuesta   = 0;
     previousMillisLeeSensores = 0;
@@ -396,11 +317,6 @@ void esperas( String bandera, unsigned long previousMillisQuien )
 
   if (bandera == "respuesta")
   {
-    //Serial.println("bandera = respuesta");
-    //Serial.print("currentMillis = ");
-    //Serial.print(currentMillis);
-    //Serial.print(" previousMillisQuien = ");
-    //Serial.println(previousMillisQuien);
 
     if ( currentMillis - previousMillisQuien >= intervaloRespuesta  )//cuando la diferencia entre previousMillis y currentMillis es mayor o igual al intervalo se envian los datos
     {
@@ -410,19 +326,20 @@ void esperas( String bandera, unsigned long previousMillisQuien )
   }
 }
 
+
+/******************************/
+/******************************/
+/******************************/
 /******************************/
 /* F U N C I O N E S   L C D  */
 /******************************/
+/******************************/
+/******************************/
+/******************************/
+
 // Funcion que escribe dos renglones en la pantalla segun los sensores presentes.
 void lcdSensores( )
 {
-  if( debug > 1)
-  {
-    delay(1000);
-    Serial.print("\n");
-    Serial.println(F("lcdSensores delay 3000ms por gurpo de sensor"));
-  }
-
   if ( esperandoRespuesta || errorLecturaSensor )
   {
     return;
@@ -486,13 +403,6 @@ void lcdSensores( )
 // Funcion que escribe dos renglones en la pantalla segun los sensores presentes cuando está offline
 void lcdSensoresOffline( )
 {
-  if( debug > 1)
-  {
-    delay(1000);
-    Serial.print("\n");
-    Serial.println(F("lcdSensores delay 3000ms por gurpo de sensor"));
-  }
-
   #ifdef DHT_PIN_0
     lcd.clear();
     lcd.setCursor(0, 0);
@@ -553,16 +463,10 @@ void lcdSensoresOffline( )
 // escribe offline
 void lcdOFFLINE()
 {
-  if( debug > 1)
-  {
-    delay(1000);
-    Serial.print("\n");
-    Serial.println(F("lcdOFFLINE delay 500ms"));
-  }
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("- OFFLINE -  ");
-  lcd.print(i);
+  lcd.print("  - OFFLINE -  ");
+  //lcd.print(i);
   if (i % 2 == 0)
   {
     lcd.setCursor(0, 1);
@@ -573,18 +477,12 @@ void lcdOFFLINE()
     lcd.setCursor(0, 1);
     lcd.print("  Conectate al ");
   }
-  delay(500);
+  delay(1000);
 }
 
 // escribe enviando datoss
 void lcdEnviandoDatos()
 {
-  if( debug > 1)
-  {
-    delay(1000);
-    Serial.print("\n");
-    Serial.println(F("lcdEnviandoDatos delay 500ms"));
-  }
   lcd.clear();
   lcd.setCursor(0, 0);
   lcd.print("E n v i a n d o ");
@@ -599,27 +497,11 @@ void lcdEnviandoDatos()
 // to do obtener la mac del esp
 void lcdBienvenida()
 {
-  if( debug > 1)
-  {
-    delay(1000);
-    Serial.print("\n");
-    Serial.println(F("lcdBienvenida delay 7500ms"));
-  }
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("www.IndoorMatic ");
-  lcd.print(i);
+  lcd.print("  Indoor ");
   lcd.setCursor(0, 1);
-  lcd.print("         .com.ar");
-  delay(5000);
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print("BIENVENIDO");
-  //lcd.print(i);
-  lcd.setCursor(0, 1);
-  lcd.print("Num. Serie: ");
-//  lcd.print(numeroSerie);
-  delay(2500);
+  lcd.print("         Matic  ");
 }
 
 //escibe datos recibidos en la pantalla
@@ -711,10 +593,10 @@ void lcdErrorLeeSensores()
 /***********************************
  * F U N C I O N E S   S E R I A L *
 /**********************************/
+// Escucha Serial = Deja en stringDelSerial una linea que vino por Serie a 115200 baudios
 void escuchaSerial()
 {
   //Serial.println("Funcion escuchaSerial");
-
   if (Serial.available())
   {
     stringDelSerial = Serial.readString();
@@ -741,8 +623,8 @@ void analizaComando( String comando )
     if (comando.equals("CONECTADO_OK"))
     {
       online = true;
-      exito = true;
-      esperandoRespuesta = false;
+      //exito = true;
+      //esperandoRespuesta = false;
       lcdONLINE();
     }
 
@@ -757,8 +639,10 @@ void analizaComando( String comando )
     else if (comando.equals("conexion_FALLIDA"))
     {
       exito = false;
-      esperandoRespuesta = false;
+      online = false;
+      //esperandoRespuesta = false;
       dbg += 1;
+
       lcdFracaso();
     }
 
