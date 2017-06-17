@@ -25,7 +25,7 @@
 /* C O N S T A N T E S */
 const long intervaloEnvioDatos        = 360000; // 6 minutos constante de espera para mandar los datos
 const long intervaloLecturaSensores   = 2000; //constante de espera para volver a leer los sensores
-const long intervaloSatus             = 600000;
+
 /* D E F I N E  C O N S T A N T E S - Sensores conectados al IM */ //Descomentar los sensores presentes en el hardware
 //#define DHT_TYPE            DHT21   // Define tipo de sensor de TyH DHT 21  (AM2301)
 #define DHT_TYPE            DHT22   // Define tipo de sensor de TyH DHT 22  (AM2302)
@@ -39,8 +39,8 @@ const long intervaloSatus             = 600000;
 
 /* V A R I A B L E S */
 unsigned long millisUltimaLecturaSensores = 0; //varialble que guardará el valor de tiempo donde se leen los sensores
-unsigned long millisUltimoEnvioDatos = 0; //varialble que guardará el valor de tiempo donde se enviaron los datos
-unsigned long millisUltimoStatus = 0; //varialble que guardará el valor de tiempo donde se enviaron los datos
+unsigned long millisUltimoEnvioDatos      = 0; //varialble que guardará el valor de tiempo donde se enviaron los datos
+unsigned long millisUltimoStatus          = 0; //varialble que guardará el valor de tiempo donde se enviaron los datos
 unsigned long millisAhora;
 
 float hum_0             = 999;  // humedad del sensor 0
@@ -57,11 +57,17 @@ int suelo_0             = 999;  //valor analogico del pin
 int suelo_1             = 999;  //valor analogico del pin
 float valorSuelo_0      = 999;  //valor mapeado
 float valorSuelo_1      = 999;  //valor mapeado
+int promedioSuelo_0     = 0;    //el sensor casero da mucha amplitud el promedio es para bajarla.
+int promedioSuelo_1     = 0;
+int contadorSuelo       = 0;
 
 String stringDelSerial  = "";   // string que recibe lo que viene por el puerto serial
 String datos            = "";   // string que tiene los valores de los sensores
+
 boolean stringCompleta  = false;  // será true cuando llegue un comando por serial
 boolean online          = false;  // bandera si esta ONLINE
+
+
 
 /* I N I C I A L I Z A libreria del LCD*/
 LiquidCrystal lcd( 13, 12, 11, 10, 9, 8 ); //inicializa la libreria con los numeros de pines utilizados
@@ -121,17 +127,18 @@ void loop()
 void espStatus( unsigned long tiempo )
 {
   millisAhora = millis();
-  if (millisUltimoStatus > millisAhora)  // si millisUltimoStatus es mayor a millisAhora quiere decir que millis() volvio a cero porque se lleno entonces vuelvo tambien a cero millisUltimoStatus
+  if ( millisUltimoStatus > millisAhora )  // si millisUltimoStatus es mayor a millisAhora quiere decir que millis() volvio a cero porque se lleno entonces vuelvo tambien a cero millisUltimoStatus
   {
-    millisUltimoEnvioDatos  = 0;
+    millisUltimoStatus  = 0;
   }
 
-  if (millisAhora - millisUltimoStatus >= tiempo)
+  if ( millisAhora - millisUltimoStatus >= tiempo )
   {
     millisUltimoStatus = millis();
     Serial.println( "[ESP_status]" );
   }
 }
+
 
 /* FUNCIONES SERIAL */
 //toma el string del serial y lo guarda en stringDelSerial y pone en TRUE stringCompleta
@@ -210,6 +217,9 @@ void enviaDatos()
   {
     millisUltimoEnvioDatos = millis();
 
+    promedioSuelo_0 = promedioSuelo_0 / contadorSuelo;
+    promedioSuelo_1 = promedioSuelo_1 / contadorSuelo;
+
     datos = "<";
     datos += "&t0=";
     datos += temp_0;
@@ -224,12 +234,16 @@ void enviaDatos()
     datos += "&luz1=";
     datos += valorLuz_1;
     datos += "&ht=";
-    datos += valorSuelo_0;
+    datos += promedioSuelo_0;
     datos += "&ht1=";
-    datos += valorSuelo_1;
+    datos += promedioSuelo_1;
     datos += ">";
 
-    Serial.print(datos);
+    Serial.println(datos);
+
+    promedioSuelo_0 = 0;
+    promedioSuelo_1 = 0;
+    contadorSuelo = 0;
 
     lcdEnviandoDatos();
   }
@@ -283,12 +297,15 @@ void leeSensores() // Según la hoja de datos habría que leer cada dos segundos
       suelo_0      = analogRead( SOIL_PIN_0 );
       //valorSuelo_0 = map( suelo_0, 0, 1023, 100, 0 ); //con el modulo comprado
       valorSuelo_0 = map( suelo_0, 0, 1023, 0, 100 ); // con el casero
+      promedioSuelo_0 = promedioSuelo_0 + valorSuelo_0;
+      contadorSuelo++;
     #endif
 
     #ifdef SOIL_PIN_1
       suelo_1      = analogRead( SOIL_PIN_1 );
       //valorSuelo_1 = map( suelo_1, 0, 1023, 100, 0 ); //con el modulo comprado
       valorSuelo_1 = map( suelo_1, 0, 1023, 0, 100 ); // con el casero
+      promedioSuelo_1 = promedioSuelo_1 + valorSuelo_1;
     #endif
   }
 }
