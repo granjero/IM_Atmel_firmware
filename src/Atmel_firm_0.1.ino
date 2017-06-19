@@ -10,17 +10,17 @@
 #include <DHT.h> // sensor de temp y humedad
 
 /* C O N S T A N T E S - Textos para el lcd */
-#define T_s0	  "Temp s0: "
-#define T_s1	  "Temp s1: "
-#define H_s0    " Hum s0: "
-#define H_s1		" Hum s1: "
-#define L_s0	  " Luz s0: "
-#define L_s1		" Luz s1: "
-#define S_s0    "Suelo 0: "
-#define S_s1	  "Suelo 1: "
-#define P	   	  " %"
-#define C	      " C"
-#define L			  " ^"
+#define T_s0  "Temp s0: "
+#define T_s1  "Temp s1: "
+#define H_s0  " Hum s0: "
+#define H_s1  " Hum s1: "
+#define L_s0  " Luz s0: "
+#define L_s1  " Luz s1: "
+#define S_s0  "Suelo 0: "
+#define S_s1  "Suelo 1: "
+#define P     " %"
+#define C     " C"
+#define L     " ^"
 
 /* C O N S T A N T E S */
 const long intervaloEnvioDatos        = 360000; // 6 minutos constante de espera para mandar los datos
@@ -28,11 +28,13 @@ const long intervaloLecturaSensores   = 2000; //constante de espera para volver 
 
 /* D E F I N E  C O N S T A N T E S - Sensores conectados al IM */ //Descomentar los sensores presentes en el hardware
 //#define DHT_TYPE            DHT21   // Define tipo de sensor de TyH DHT 21  (AM2301)
-#define DHT_TYPE            DHT22   // Define tipo de sensor de TyH DHT 22  (AM2302)
-#define DHT_PIN_0           2       // pin al que va el cable de dato del sensor0 de temperatura
+//#define DHT_TYPE            DHT22   // Define tipo de sensor de TyH DHT 22  (AM2302)
+//#define DHT_PIN_0           2       // pin al que va el cable de dato del sensor0 de temperatura
 //#define DHT_PIN_1           3       // pin al que va el cable de dato del sensor1 de temperatura
+#define BOMBA               7
+
 //#define LIGHT_SENSOR_PIN_0  A0      //PARA EL DE PEDRO
-#define LIGHT_SENSOR_PIN_0  A2      //define el pin para el Photo-resistor_0
+//#define LIGHT_SENSOR_PIN_0  A2      //define el pin para el Photo-resistor_0
 //#define LIGHT_SENSOR_PIN_1  A0      //define el pin para el Photo-resistor_1
 #define SOIL_PIN_0          A1      //define el pin para sensor de humedad de tierra
 //#define SOIL_PIN_1          A3      //define el pin para sensor de humedad de tierra
@@ -40,7 +42,9 @@ const long intervaloLecturaSensores   = 2000; //constante de espera para volver 
 /* V A R I A B L E S */
 unsigned long millisUltimaLecturaSensores = 0; //varialble que guardará el valor de tiempo donde se leen los sensores
 unsigned long millisUltimoEnvioDatos      = 0; //varialble que guardará el valor de tiempo donde se enviaron los datos
-unsigned long millisUltimoStatus          = 0; //varialble que guardará el valor de tiempo donde se enviaron los datos
+unsigned long millisUltimoStatus          = 0; //varialble que guardará el valor de tiempo del ultimo status
+unsigned long millisFinRiego              = 0; //varialble que guardará el valor de tiempo donde comeinza a regar
+
 unsigned long millisAhora;
 
 float hum_0             = 999;  // humedad del sensor 0
@@ -67,6 +71,9 @@ String datos            = "";   // string que tiene los valores de los sensores
 boolean stringCompleta  = false;  // será true cuando llegue un comando por serial
 boolean online          = false;  // bandera si esta ONLINE
 
+int regarInt          = 0;
+int tiempoRiegoInt    = 0;
+int humidificadorInt  = 0;
 
 
 /* I N I C I A L I Z A libreria del LCD*/
@@ -96,6 +103,8 @@ void setup()
     dht_1.begin(); // inicia el sensor1
   #endif
 
+  pinMode(BOMBA, OUTPUT);
+
   lcdBienvenida();
   delay( 5000 );
 }
@@ -115,6 +124,8 @@ void loop()
 
   leeSensores();
   lcdSensores();
+
+  funcionRegar( regarInt, tiempoRiegoInt );
 
   if ( online )
   {
@@ -170,10 +181,10 @@ void analizaComando( String comando )
       online = false;
     }
 
-    /*else if ( comando.equals( "[ENVIANDO_DATOS]" ) )
+    else if ( comando.equals( "[ENVIANDO_DATOS]" ) )
     {
       lcdEnviandoDatos();
-    }*/
+    }
 
     else if ( comando.equals( "[EXITO]" ) )
     {
@@ -190,10 +201,10 @@ void analizaComando( String comando )
       lcdFalloConexion();
     }
 
-    /*else if( comando.startsWith( "<" ) && comando.endsWith( ">" ) )
+    else if( comando.startsWith( "<" ) && comando.endsWith( ">" ) )
     {
-      comando = comando.substring( 1, comando.length() - 1);
-    }*/
+      parseaComandoRiego( comando );
+    }
 
     else
     {
@@ -201,7 +212,57 @@ void analizaComando( String comando )
   }
   stringDelSerial = "";
 }
+
+void parseaComandoRiego (String comando)
+{
+  comando = comando.substring( 1, comando.length() - 1);
+
+  int     del1; // indide de los delimitadores
+  int     del2;
+  int     del3;
+  String  regar;
+  String  tiempoRiego;
+  String  humidificador;
+
+  del1              = comando.indexOf( ';'  );  //encuentra el primer delimitador
+  regar             = comando.substring( 0, del1 );
+  regarInt          = regar.toInt( );
+
+  del2              = comando.indexOf( ';', del1 + 1 );   //encuentra el siguiente delimitador
+  tiempoRiego       = comando.substring( del1 + 1, del2 );
+  tiempoRiegoInt    = tiempoRiego.toInt();
+
+  del3              = comando.indexOf( ';', del2 + 1 );
+  humidificador     = comando.substring( del2 + 1, del3 );
+  humidificadorInt  = humidificador.toInt();
+
+}
 /* FIN FUNCIONES SERIAL */
+
+/* FUNCIONES RIEGO*/
+void funcionRegar( int riego, int segundos )
+{
+  millisAhora = millis();
+
+  if ( riego == 1 )
+  {
+    regarInt = 0;
+    lcdRegando();
+    millisFinRiego = segundos * 1000 + millisAhora;
+    digitalWrite(BOMBA, HIGH);
+  }
+
+  if ( riego == 0 )
+  {
+    if ( millisAhora > millisFinRiego )
+    {
+      digitalWrite(BOMBA, LOW);
+    }
+  }
+}
+
+/* FIN FUNCIONES RIEGO*/
+
 
 /* FUNCIONES DATOS*/
 //si pasó el tiempo de intervaloEnvioDatos envia al esp un string con los valres de los sensores
@@ -439,5 +500,13 @@ void lcdFalloConexion()
   lcd.print( "   F A L L O   " );
   lcd.setCursor(0, 1);
   lcd.print( "C O N E X I O N" );
+  delay(1000);
+}
+
+void lcdRegando()
+{
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print( "  RIEGO   " );
   delay(1000);
 }
