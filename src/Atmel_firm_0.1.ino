@@ -201,6 +201,11 @@ void analizaComando( String comando )
       lcdFalloConexion();
     }
 
+    else if ( comando.equals( "[RESPUESTA_NULA]" ) )
+    {
+      lcdRespuestaNula();
+    }
+
     else if( comando.startsWith( "<" ) && comando.endsWith( ">" ) )
     {
       parseaComandoRiego( comando );
@@ -213,9 +218,9 @@ void analizaComando( String comando )
   stringDelSerial = "";
 }
 
-void parseaComandoRiego (String comando)
+void parseaComandoRiego ( String comando )
 {
-  comando = comando.substring( 1, comando.length() - 1);
+  comando = comando.substring( 1, comando.length() - 1 );
 
   int     del1; // indide de los delimitadores
   int     del2;
@@ -227,6 +232,11 @@ void parseaComandoRiego (String comando)
   del1              = comando.indexOf( ';'  );  //encuentra el primer delimitador
   regar             = comando.substring( 0, del1 );
   regarInt          = regar.toInt( );
+
+  if (regarInt == 1)
+  {
+    Serial.println( "[REGADO]" );
+  }
 
   del2              = comando.indexOf( ';', del1 + 1 );   //encuentra el siguiente delimitador
   tiempoRiego       = comando.substring( del1 + 1, del2 );
@@ -500,6 +510,16 @@ void lcdFalloConexion()
   lcd.print( "   F A L L O   " );
   lcd.setCursor(0, 1);
   lcd.print( "C O N E X I O N" );
+  delay(1000);
+}
+
+void lcdRespuestaNula()
+{
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print( "RESPUESTA" );
+  lcd.setCursor(0, 1);
+  lcd.print( "            NULA" );
   delay(1000);
 }
 
