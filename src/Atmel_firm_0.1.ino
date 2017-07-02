@@ -7,6 +7,29 @@
 /* L I B R E R I A S */
 #include <Arduino.h>
 #include <LiquidCrystal.h> // lcd de 16 x 2
+
+byte Fi[8] = {
+	0b10111,
+	0b00000,
+	0b00000,
+	0b10000,
+	0b10100,
+	0b10100,
+	0b11111,
+  0b00000
+};
+
+byte Wi[8] = {
+	0b10111,
+	0b00000,
+	0b00000,
+	0b11110,
+	0b00001,
+	0b00110,
+	0b00001,
+	0b11110
+};
+
 #include <DHT.h> // sensor de temp y humedad
 
 /* C O N S T A N T E S - Textos para el lcd */
@@ -28,16 +51,17 @@ const long intervaloLecturaSensores   = 2000; //constante de espera para volver 
 
 /* D E F I N E  C O N S T A N T E S - Sensores conectados al IM */ //Descomentar los sensores presentes en el hardware
 //#define DHT_TYPE            DHT21   // Define tipo de sensor de TyH DHT 21  (AM2301)
-//#define DHT_TYPE            DHT22   // Define tipo de sensor de TyH DHT 22  (AM2302)
-//#define DHT_PIN_0           2       // pin al que va el cable de dato del sensor0 de temperatura
+#define DHT_TYPE            DHT22   // Define tipo de sensor de TyH DHT 22  (AM2302)
+// #define DHT_PIN_0           2       // pin al que va el cable de dato del sensor0 de temperatura
+#define DHT_PIN_0           3       // error de soldadura quitar
 //#define DHT_PIN_1           3       // pin al que va el cable de dato del sensor1 de temperatura
 #define BOMBA               7
 
 //#define LIGHT_SENSOR_PIN_0  A0      //PARA EL DE PEDRO
-//#define LIGHT_SENSOR_PIN_0  A2      //define el pin para el Photo-resistor_0
+#define LIGHT_SENSOR_PIN_0  A2      //define el pin para el Photo-resistor_0
 //#define LIGHT_SENSOR_PIN_1  A0      //define el pin para el Photo-resistor_1
-#define SOIL_PIN_0          A1      //define el pin para sensor de humedad de tierra
-//#define SOIL_PIN_1          A3      //define el pin para sensor de humedad de tierra
+// #define SOIL_PIN_0          A1      //define el pin para sensor de humedad de tierra
+// #define SOIL_PIN_1          A3      //define el pin para sensor de humedad de tierra
 
 /* V A R I A B L E S */
 unsigned long millisUltimaLecturaSensores = 0; //varialble que guardará el valor de tiempo donde se leen los sensores
@@ -45,7 +69,12 @@ unsigned long millisUltimoEnvioDatos      = 0; //varialble que guardará el valo
 unsigned long millisUltimoStatus          = 0; //varialble que guardará el valor de tiempo del ultimo status
 unsigned long millisFinRiego              = 0; //varialble que guardará el valor de tiempo donde comeinza a regar
 
-unsigned long millisAhora;
+unsigned long intervaloLCD = 3000;
+unsigned long millisLCDUltimoMensaje = 0;
+unsigned long millisAhora = 0;
+
+int cantidadSensores = 0;
+int cantidadMensajes = 0;
 
 float hum_0             = 999;  // humedad del sensor 0
 float hum_1             = 999;  // humedad del sensor 1
@@ -71,7 +100,20 @@ String datos            = "";   // string que tiene los valores de los sensores
 boolean stringCompleta  = false;  // será true cuando llegue un comando por serial
 boolean online          = false;  // bandera si esta ONLINE
 
-int regarInt          = 0;
+//bancderas de mesajes
+boolean lcd_DHT_0           = true;
+boolean lcd_DHT_1           = true;
+boolean lcd_LUZ             = true;
+boolean lcd_SUELO           = true;
+boolean lcd_ONLINE          = false;
+boolean lcd_OFFLINE         = false;
+boolean lcd_ENVIA_DATOS     = false;
+boolean lcd_DATOS_OK        = false;
+boolean lcd_FALLO_CONEXION  = false;
+boolean lcd_REGANDO         = false;
+boolean lcd_RESPUESTA_NULA  = false;
+
+int regarInt          = 2;
 int tiempoRiegoInt    = 0;
 int humidificadorInt  = 0;
 
@@ -93,44 +135,65 @@ void setup()
 {
   Serial.begin( 115200 ); // inicia comunicacion serie a 115.200 baudios
 
+  lcd.createChar( 0, Wi );
+  lcd.createChar( 1, Fi );
   lcd.begin( 16, 2 ); // inicia el lcd y setea el numero de columnas y de filas del lcd
 
   #ifdef DHT_PIN_0
     dht_0.begin(); // inicia el sensor0
+    cantidadSensores++;
   #endif
 
   #ifdef DHT_PIN_1
     dht_1.begin(); // inicia el sensor1
+    cantidadSensores++;
+  #endif
+
+  #ifdef SOIL_PIN_0
+    cantidadSensores++;
+  #endif
+
+  #ifdef LIGHT_SENSOR_PIN_0
+    cantidadSensores++;
   #endif
 
   pinMode(BOMBA, OUTPUT);
 
-  lcdBienvenida();
+  lcd.clear();
+  lcd.setCursor( 0, 0 );
+  lcd.print( F ( "   Indoor" ) );
+  lcd.setCursor( 0, 1 );
+  lcd.print( F ( "        Matic" ) );
+
   delay( 5000 );
 }
 
 /* L O O P - Cosas que corren para siempre */
 void loop()
 {
-  espStatus( 600000 );
-  escuchaSerial();
-  analizaComando( stringDelSerial );
-
   if ( !online )
   {
-    espStatus( 2000 );
-    lcdOFFLINE();
+    lcd.setCursor( 15, 0 );
+    lcd.write( byte( 1 ) );
+    lcd.setCursor( 15, 1 );
+    lcd.write( byte( 0 ) );
+		espStatus( 10000 );
   }
 
   leeSensores();
-  lcdSensores();
+  escuchaSerial();
+  analizaComando( stringDelSerial );
 
-  funcionRegar( regarInt, tiempoRiegoInt );
+  mensajesLCD();
 
   if ( online )
   {
     enviaDatos();
+		funcionRegar();
   }
+
+  espStatus( 600000 );
+
 }
 
 /* F U N C I O N E S */
@@ -146,7 +209,7 @@ void espStatus( unsigned long tiempo )
   if ( millisAhora - millisUltimoStatus >= tiempo )
   {
     millisUltimoStatus = millis();
-    Serial.println( "[ESP_status]" );
+    Serial.println( F( "[ESP_status]" ) );
   }
 }
 
@@ -173,37 +236,45 @@ void analizaComando( String comando )
     if ( comando.equals( "[ONLINE]" ) )
     {
       online = true;
-      lcdONLINE();
+      lcd_ONLINE = true;
+      estadoLcdSensores( false );
+			lcd.clear();
     }
 
     else if ( comando.equals( "[OFFLINE]" ) )
     {
       online = false;
+      lcd_OFFLINE = true;
+      estadoLcdSensores( false );
     }
 
-    else if ( comando.equals( "[ENVIANDO_DATOS]" ) )
-    {
-      lcdEnviandoDatos();
-    }
+    // else if ( comando.equals( "[ENVIANDO_DATOS]" ) )
+    // {
+    //   lcd_ENVIA_DATOS = true;
+    //   estadoLcdSensores( false );
+    // }
 
     else if ( comando.equals( "[EXITO]" ) )
     {
-      lcdExito();
+      lcd_DATOS_OK = true;
+      estadoLcdSensores( false );
     }
 
-    else if ( comando.equals( "[NO]" ) )
-    {
-      lcdNO();
-    }
+    // else if ( comando.equals( "[NO]" ) )
+    // {
+    //   lcdNO();
+    // }
 
     else if ( comando.equals( "[FALLO_CONEXION]" ) )
     {
-      lcdFalloConexion();
+      lcd_FALLO_CONEXION = true;
+      estadoLcdSensores( false );
     }
 
     else if ( comando.equals( "[RESPUESTA_NULA]" ) )
     {
-      lcdRespuestaNula();
+      lcd_RESPUESTA_NULA = true;
+      estadoLcdSensores( false );
     }
 
     else if( comando.startsWith( "<" ) && comando.endsWith( ">" ) )
@@ -220,6 +291,8 @@ void analizaComando( String comando )
 
 void parseaComandoRiego ( String comando )
 {
+  millisAhora = millis();
+
   comando = comando.substring( 1, comando.length() - 1 );
 
   int     del1; // indide de los delimitadores
@@ -229,14 +302,14 @@ void parseaComandoRiego ( String comando )
   String  tiempoRiego;
   String  humidificador;
 
-  del1              = comando.indexOf( ';'  );  //encuentra el primer delimitador
+  del1              = comando.indexOf( ';' );  //encuentra el primer delimitador
   regar             = comando.substring( 0, del1 );
-  regarInt          = regar.toInt( );
+  regarInt          = regar.toInt();
 
-  if (regarInt == 1)
-  {
-    Serial.println( "[REGADO]" );
-  }
+  // if (regarInt == 1)
+  // {
+  //   Serial.println( "[REGADO]" );
+  // }
 
   del2              = comando.indexOf( ';', del1 + 1 );   //encuentra el siguiente delimitador
   tiempoRiego       = comando.substring( del1 + 1, del2 );
@@ -250,25 +323,30 @@ void parseaComandoRiego ( String comando )
 /* FIN FUNCIONES SERIAL */
 
 /* FUNCIONES RIEGO*/
-void funcionRegar( int riego, int segundos )
+void funcionRegar( )
 {
   millisAhora = millis();
 
-  if ( riego == 1 )
+  if ( regarInt == 1 )
   {
     regarInt = 0;
-    lcdRegando();
-    millisFinRiego = segundos * 1000 + millisAhora;
+
+    lcd_REGANDO = true;
+    estadoLcdSensores( false );
+
+    millisFinRiego = ( (unsigned long)tiempoRiegoInt * 1000 ) + millisAhora;
+
     digitalWrite(BOMBA, HIGH);
+		Serial.println( F ( "[REGANDO]" ) );
+
   }
 
-  if ( riego == 0 )
+  if ( millisAhora >= millisFinRiego )
   {
-    if ( millisAhora > millisFinRiego )
-    {
-      digitalWrite(BOMBA, LOW);
-    }
+    digitalWrite(BOMBA, LOW);
+		// regarInt = 2;
   }
+
 }
 
 /* FIN FUNCIONES RIEGO*/
@@ -316,7 +394,8 @@ void enviaDatos()
     promedioSuelo_1 = 0;
     contadorSuelo = 0;
 
-    lcdEnviandoDatos();
+    lcd_ENVIA_DATOS = true;
+    estadoLcdSensores( false );
   }
 }
 /* FIN FUNCIONES DATOS*/
@@ -339,8 +418,8 @@ void leeSensores() // Según la hoja de datos habría que leer cada dos segundos
       temp_0  = dht_0.readTemperature();
       if ( isnan( hum_0 ) || isnan( temp_0 ) )
       {
-        hum_0   = 1000;
-        temp_0  = 1000;
+        hum_0   = -1;
+        temp_0  = -1;
       }
     #endif
 
@@ -349,8 +428,8 @@ void leeSensores() // Según la hoja de datos habría que leer cada dos segundos
       temp_1  = dht_1.readTemperature();
       if ( isnan( hum_0 ) || isnan( temp_0 ) )
       {
-        hum_1   = 1000;
-        temp_1  = 1000;
+        hum_1   = -1;
+        temp_1  = -1;
       }
     #endif
 
@@ -381,45 +460,55 @@ void leeSensores() // Según la hoja de datos habría que leer cada dos segundos
   }
 }
 
-/* FUNCIONES LCD */
-void lcdBienvenida()
-{
-  lcd.clear();
-  lcd.setCursor( 0, 0 );
-  lcd.print("   Indoor");
-  lcd.setCursor( 0, 1 );
-  lcd.print("        Matic");
-}
 
-void lcdSensores( )
+void mensajesLCD()
 {
+  millisAhora = millis();
+
   #ifdef DHT_PIN_0
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print(T_s0);
-    lcd.print(temp_0);
-    lcd.print(C);
-    lcd.setCursor(0, 1);
-    lcd.print(H_s0);
-    lcd.print(hum_0);
-    lcd.print(P);
-    delay(3000);
+    if( ( lcd_DHT_0 ) && ( millisAhora - millisLCDUltimoMensaje >= intervaloLCD ) )
+    {
+      millisLCDUltimoMensaje = millis();
+      lcd_DHT_0 = false;
+      cantidadMensajes++;
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print(T_s0);
+      lcd.print(temp_0);
+      lcd.print(C);
+      lcd.setCursor(0, 1);
+      lcd.print(H_s0);
+      lcd.print(hum_0);
+      lcd.print(P);
+      return;
+    }
   #endif
 
   #ifdef DHT_PIN_1
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print(T_s1);
-    lcd.print(temp_1);
-    lcd.print(C);
-    lcd.setCursor(0, 1);
-    lcd.print(H_s1);
-    lcd.print(hum_1);
-    lcd.print(P);
-    delay(3000);
+    if( ( lcd_DHT_1 ) && ( millisAhora - millisLCDUltimoMensaje >= intervaloLCD ) )
+    {
+      millisLCDUltimoMensaje = millis();
+      lcd_DHT_1 = false;
+      cantidadMensajes++;
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print(T_s1);
+      lcd.print(temp_1);
+      lcd.print(C);
+      lcd.setCursor(0, 1);
+      lcd.print(H_s1);
+      lcd.print(hum_1);
+      lcd.print(P);
+      return;
+    }
   #endif
 
   #ifdef LIGHT_SENSOR_PIN_0
+  if( ( lcd_LUZ ) && ( millisAhora - millisLCDUltimoMensaje >= intervaloLCD ) )
+  {
+    millisLCDUltimoMensaje = millis();
+    lcd_LUZ = false;
+    cantidadMensajes++;
     lcd.clear();
     lcd.setCursor(0, 0);
     lcd.print(L_s0);
@@ -431,102 +520,151 @@ void lcdSensores( )
       lcd.print(valorLuz_1);
       lcd.print(L);
       #endif
-    delay(3000);
+      return;
+    }
   #endif
 
   #ifdef SOIL_PIN_0
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print(S_s0);
-    lcd.print(valorSuelo_0);
+    if( ( lcd_SUELO ) && ( millisAhora - millisLCDUltimoMensaje >= intervaloLCD ) )
+    {
+      millisLCDUltimoMensaje = millis();
+      lcd_SUELO = false;
+      cantidadMensajes++;
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print(S_s0);
+      lcd.print(valorSuelo_0);
       #ifdef SOIL_PIN_1
         lcd.setCursor(0, 1);
         lcd.print(S_s1);
         lcd.print(valorSuelo_1);
-        #endif
-    delay(3000);
+      #endif
+      return;
+    }
   #endif
+
+  if ( cantidadSensores == cantidadMensajes )
+  {
+    estadoLcdSensores( true );
+  }
+
+
+  if( lcd_ONLINE && millisAhora - millisLCDUltimoMensaje >= intervaloLCD  )
+  {
+    millisLCDUltimoMensaje = millis();
+    lcd_ONLINE = false;
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print( F( "   - ONLINE -   " ) );
+    lcd.setCursor(0, 1);
+    lcd.print( F( " INDOOR - MATIC " ) );
+    estadoLcdSensores( true );
+    return;
+  }
+
+  if( lcd_OFFLINE && millisAhora - millisLCDUltimoMensaje >= intervaloLCD  )
+  {
+    millisLCDUltimoMensaje = millis();
+    lcd_OFFLINE = false;
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print( F( "  Conectate al  " ) );
+    lcd.setCursor(0, 1);
+    lcd.print( F( "WiFi IndoorMatic" ) );
+    estadoLcdSensores( true );
+    return;
+  }
+
+  if( lcd_ENVIA_DATOS && millisAhora - millisLCDUltimoMensaje >= intervaloLCD  )
+  {
+    millisLCDUltimoMensaje = millis();
+    lcd_ENVIA_DATOS = false;
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print( F( "E n v i a n d o " ) );
+    lcd.setCursor(0, 1);
+    lcd.print( F( "   D a t o s    " ) );
+    estadoLcdSensores( true );
+    return;
+  }
+
+  if( lcd_DATOS_OK && millisAhora - millisLCDUltimoMensaje >= intervaloLCD  )
+  {
+    millisLCDUltimoMensaje = millis();
+    lcd_DATOS_OK = false;
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print( F( "   D a t o s    " ) );
+    lcd.setCursor(0, 1);
+    lcd.print( F( "Enviados  O.K." ) );
+    estadoLcdSensores( true );
+    return;
+  }
+
+  if( lcd_FALLO_CONEXION && millisAhora - millisLCDUltimoMensaje >= intervaloLCD  )
+  {
+    millisLCDUltimoMensaje = millis();
+    lcd_FALLO_CONEXION = false;
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print( F( "   F A L L O   " ) );
+    lcd.setCursor(0, 1);
+    lcd.print( F( "C O N E X I O N" ) );
+    estadoLcdSensores( true );
+    return;
+  }
+
+  if( lcd_REGANDO && millisAhora - millisLCDUltimoMensaje >= intervaloLCD  )
+  {
+    millisLCDUltimoMensaje = millis();
+    lcd_REGANDO = false;
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print( F( "  REGANDO   " ) );
+    estadoLcdSensores( true );
+    return;
+  }
+
+  if( lcd_RESPUESTA_NULA && millisAhora - millisLCDUltimoMensaje >= intervaloLCD  )
+  {
+    millisLCDUltimoMensaje = millis();
+    lcd_RESPUESTA_NULA = false;
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print( F( "RESPUESTA" ) );
+    lcd.setCursor(0, 1);
+    lcd.print( F( "            NULA" ) );
+    estadoLcdSensores( true );
+    return;
+  }
+
+  if( !online && millisAhora - millisLCDUltimoMensaje >= intervaloLCD  )
+  {
+    millisLCDUltimoMensaje = millis();
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print( F( "  Conectate al  " ) );
+    lcd.setCursor(0, 1);
+    lcd.print( F( "WiFi IndoorMatic" ) );
+    estadoLcdSensores( true );
+    return;
+  }
+
+  // if( lcd_X && millisAhora - millisLCDUltimoMensaje >= intervaloLCD  )
+  // {
+  //   millisLCDUltimoMensaje = millis();
+  //   lcd_X = false;
+  //
+  //   estadoLcdSensores( true );
+  //   return;
+  // }
 }
 
-//escibe ONLINE en la pantalla
-void lcdONLINE()
+void estadoLcdSensores(boolean estado)
 {
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print( "   - ONLINE -   " );
-  lcd.setCursor(0, 1);
-  lcd.print( " INDOOR - MATIC " );
-  delay(3000);
-}
-
-//escibe OFFLINE en la pantalla
-void lcdOFFLINE()
-{
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print( "  Conectate al  " );
-  lcd.setCursor(0, 1);
-  lcd.print( "WiFi IndoorMatic" );
-  delay(3000);
-}
-
-// escribe enviando datoss
-void lcdEnviandoDatos()
-{
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print( "E n v i a n d o " );
-  //lcd.print(i);
-  lcd.setCursor(0, 1);
-  lcd.print( "   D a t o s    " );
-  delay(1000);
-}
-
-//escibe datos recibidos en la pantalla
-void lcdExito()
-{
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print( "   D a t o s    " );
-  lcd.setCursor(0, 1);
-  lcd.print( "Enviados  O.K." );
-  delay(1000);
-}
-
-void lcdNO()
-{
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print( "   D a t o s    " );
-  lcd.setCursor(0, 1);
-  lcd.print( "NO enviados (?)" );
-  delay(1000);
-}
-
-void lcdFalloConexion()
-{
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print( "   F A L L O   " );
-  lcd.setCursor(0, 1);
-  lcd.print( "C O N E X I O N" );
-  delay(1000);
-}
-
-void lcdRespuestaNula()
-{
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print( "RESPUESTA" );
-  lcd.setCursor(0, 1);
-  lcd.print( "            NULA" );
-  delay(1000);
-}
-
-void lcdRegando()
-{
-  lcd.clear();
-  lcd.setCursor(0, 0);
-  lcd.print( "  RIEGO   " );
-  delay(1000);
+  cantidadMensajes = 0;
+  lcd_DHT_0 = estado;
+  lcd_DHT_1 = estado;
+  lcd_LUZ = estado;
+  lcd_SUELO = estado;
 }
