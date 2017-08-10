@@ -8,17 +8,6 @@
 #include <Arduino.h>
 #include <LiquidCrystal.h> // lcd de 16 x 2
 
-byte Fi[8] = {
-	0b10111,
-	0b00000,
-	0b00000,
-	0b10000,
-	0b10100,
-	0b10100,
-	0b11111,
-  0b00000
-};
-
 byte Wi[8] = {
 	0b10111,
 	0b00000,
@@ -30,20 +19,44 @@ byte Wi[8] = {
 	0b11110
 };
 
+byte Fi[8] = {
+	0b10111,
+	0b00000,
+	0b00000,
+	0b10000,
+	0b10100,
+	0b10100,
+	0b11111,
+  0b00000
+};
+
+byte Rst[8] = {
+	0b11001,
+	0b01100,
+	0b00110,
+	0b10011,
+	0b11001,
+	0b01100,
+	0b00110,
+	0b10011
+};
+
+
 #include <DHT.h> // sensor de temp y humedad
 
 /* C O N S T A N T E S - Textos para el lcd */
-#define T_s0  "Temp s0: "
+#define T_s0  "T "
 #define T_s1  "Temp s1: "
-#define H_s0  " Hum s0: "
+#define H_s0  "H "
 #define H_s1  " Hum s1: "
-#define L_s0  " Luz s0: "
+#define L_s0  "Luz "
 #define L_s1  " Luz s1: "
 #define S_s0  "Suelo 0: "
 #define S_s1  "Suelo 1: "
-#define P     " %"
-#define C     " C"
-#define L     " ^"
+#define P     "% "
+#define C     "C "
+#define L     "^ "
+#define sensor     "Sensor "
 
 /* C O N S T A N T E S */
 const long intervaloEnvioDatos        = 360000; // 6 minutos constante de espera para mandar los datos
@@ -52,16 +65,16 @@ const long intervaloLecturaSensores   = 2000; //constante de espera para volver 
 /* D E F I N E  C O N S T A N T E S - Sensores conectados al IM */ //Descomentar los sensores presentes en el hardware
 //#define DHT_TYPE            DHT21   // Define tipo de sensor de TyH DHT 21  (AM2301)
 #define DHT_TYPE            DHT22   // Define tipo de sensor de TyH DHT 22  (AM2302)
-// #define DHT_PIN_0           2       // pin al que va el cable de dato del sensor0 de temperatura
-#define DHT_PIN_0           3       // error de soldadura quitar
-//#define DHT_PIN_1           3       // pin al que va el cable de dato del sensor1 de temperatura
+#define DHT_PIN_0           2       // pin al que va el cable de dato del sensor0 de temperatura
+//#define DHT_PIN_0           3       // error de soldadura quitar
+#define DHT_PIN_1           3       // pin al que va el cable de dato del sensor1 de temperatura
 #define BOMBA               7
 
 //#define LIGHT_SENSOR_PIN_0  A0      //PARA EL DE PEDRO
 #define LIGHT_SENSOR_PIN_0  A2      //define el pin para el Photo-resistor_0
 //#define LIGHT_SENSOR_PIN_1  A0      //define el pin para el Photo-resistor_1
-// #define SOIL_PIN_0          A1      //define el pin para sensor de humedad de tierra
-// #define SOIL_PIN_1          A3      //define el pin para sensor de humedad de tierra
+#define SOIL_PIN_0          A1      //define el pin para sensor de humedad de tierra
+//#define SOIL_PIN_1          A3      //define el pin para sensor de humedad de tierra
 
 /* V A R I A B L E S */
 unsigned long millisUltimaLecturaSensores = 0; //varialble que guardará el valor de tiempo donde se leen los sensores
@@ -112,6 +125,8 @@ boolean lcd_DATOS_OK        = false;
 boolean lcd_FALLO_CONEXION  = false;
 boolean lcd_REGANDO         = false;
 boolean lcd_RESPUESTA_NULA  = false;
+boolean LOOP								= false;
+
 
 int regarInt          = 2;
 int tiempoRiegoInt    = 0;
@@ -137,6 +152,7 @@ void setup()
 
   lcd.createChar( 0, Wi );
   lcd.createChar( 1, Fi );
+	lcd.createChar( 2, Rst );
   lcd.begin( 16, 2 ); // inicia el lcd y setea el numero de columnas y de filas del lcd
 
   #ifdef DHT_PIN_0
@@ -153,19 +169,20 @@ void setup()
     cantidadSensores++;
   #endif
 
-  #ifdef LIGHT_SENSOR_PIN_0
-    cantidadSensores++;
-  #endif
+  // #ifdef LIGHT_SENSOR_PIN_0
+  //   cantidadSensores++;
+  // #endif
 
   pinMode(BOMBA, OUTPUT);
+	digitalWrite(BOMBA, LOW);
 
   lcd.clear();
   lcd.setCursor( 0, 0 );
   lcd.print( F ( "   Indoor" ) );
   lcd.setCursor( 0, 1 );
   lcd.print( F ( "        Matic" ) );
-
   delay( 5000 );
+	lcd.clear();
 }
 
 /* L O O P - Cosas que corren para siempre */
@@ -173,10 +190,16 @@ void loop()
 {
   if ( !online )
   {
-    lcd.setCursor( 15, 0 );
-    lcd.write( byte( 1 ) );
-    lcd.setCursor( 15, 1 );
-    lcd.write( byte( 0 ) );
+		if ( !LOOP )
+		{
+			lcdWiFi();
+		}
+
+		if ( LOOP )
+		{
+			lcdRST();
+		}
+
 		espStatus( 10000 );
   }
 
@@ -236,6 +259,7 @@ void analizaComando( String comando )
     if ( comando.equals( "[ONLINE]" ) )
     {
       online = true;
+			LOOP = false;
       lcd_ONLINE = true;
       estadoLcdSensores( false );
 			lcd.clear();
@@ -248,11 +272,10 @@ void analizaComando( String comando )
       estadoLcdSensores( false );
     }
 
-    // else if ( comando.equals( "[ENVIANDO_DATOS]" ) )
-    // {
-    //   lcd_ENVIA_DATOS = true;
-    //   estadoLcdSensores( false );
-    // }
+    else if ( comando.equals( "[LOOP]" ) )
+    {
+      LOOP = true;
+    }
 
     else if ( comando.equals( "[EXITO]" ) )
     {
@@ -306,11 +329,6 @@ void parseaComandoRiego ( String comando )
   regar             = comando.substring( 0, del1 );
   regarInt          = regar.toInt();
 
-  // if (regarInt == 1)
-  // {
-  //   Serial.println( "[REGADO]" );
-  // }
-
   del2              = comando.indexOf( ';', del1 + 1 );   //encuentra el siguiente delimitador
   tiempoRiego       = comando.substring( del1 + 1, del2 );
   tiempoRiegoInt    = tiempoRiego.toInt();
@@ -344,9 +362,9 @@ void funcionRegar( )
   if ( millisAhora >= millisFinRiego )
   {
     digitalWrite(BOMBA, LOW);
-		// regarInt = 2;
+		delay(250);
+		millisFinRiego = 0;
   }
-
 }
 
 /* FIN FUNCIONES RIEGO*/
@@ -460,6 +478,21 @@ void leeSensores() // Según la hoja de datos habría que leer cada dos segundos
   }
 }
 
+void lcdWiFi()
+{
+	lcd.setCursor( 15, 0 );
+	lcd.write( byte( 1 ) );
+	lcd.setCursor( 15, 1 );
+	lcd.write( byte( 0 ) );
+}
+
+void lcdRST()
+{
+	lcd.setCursor( 15, 0 );
+	lcd.write( byte( 2 ) );
+	lcd.setCursor( 15, 1 );
+	lcd.write( byte( 2 ) );
+}
 
 void mensajesLCD()
 {
@@ -472,14 +505,39 @@ void mensajesLCD()
       lcd_DHT_0 = false;
       cantidadMensajes++;
       lcd.clear();
-      lcd.setCursor(0, 0);
-      lcd.print(T_s0);
-      lcd.print(temp_0);
-      lcd.print(C);
-      lcd.setCursor(0, 1);
-      lcd.print(H_s0);
-      lcd.print(hum_0);
-      lcd.print(P);
+      lcd.setCursor( 0, 0 );
+      lcd.print( T_s0 );
+      lcd.print( temp_0, 1 );
+      lcd.print( C );
+			lcd.print( H_s0 );
+			lcd.print( hum_0, 1 );
+			lcd.print( P );
+			lcd.setCursor( 0, 1 );
+
+			#ifdef LIGHT_SENSOR_PIN_0
+		  // if( ( lcd_LUZ ) && ( millisAhora - millisLCDUltimoMensaje >= intervaloLCD ) )
+		  // {
+		    // millisLCDUltimoMensaje = millis();
+		    // lcd_LUZ = false;
+		    // cantidadMensajes++;
+		    // lcd.clear();
+		    // lcd.setCursor(0, 0);
+		    lcd.print( L_s0 );
+		    lcd.print( valorLuz_0 );
+		    lcd.print( L );
+				lcd.print( sensor );
+				lcd.print( "0" );
+
+
+		      // #ifdef LIGHT_SENSOR_PIN_1
+		      // lcd.setCursor(0, 1);
+		      // lcd.print(L_s1);
+		      // lcd.print(valorLuz_1);
+		      // lcd.print(L);
+		      // #endif
+		      // return;
+		    // }
+		  #endif
       return;
     }
   #endif
@@ -491,38 +549,28 @@ void mensajesLCD()
       lcd_DHT_1 = false;
       cantidadMensajes++;
       lcd.clear();
-      lcd.setCursor(0, 0);
-      lcd.print(T_s1);
-      lcd.print(temp_1);
-      lcd.print(C);
-      lcd.setCursor(0, 1);
-      lcd.print(H_s1);
-      lcd.print(hum_1);
-      lcd.print(P);
+      lcd.setCursor( 0, 0 );
+      lcd.print( T_s1 );
+      lcd.print( temp_1 );
+      lcd.print( C );
+      lcd.setCursor( 0, 1 );
+      lcd.print( H_s1 );
+      lcd.print( hum_1 );
+      lcd.print( P );
+
+			#ifdef LIGHT_SENSOR_PIN_1
+				lcd.setCursor( 0, 1 );
+				lcd.print( L_s0 );
+				lcd.print( valorLuz_1 );
+				lcd.print( L );
+				lcd.print( sensor );
+				lcd.print( "1");
+			#endif
       return;
     }
   #endif
 
-  #ifdef LIGHT_SENSOR_PIN_0
-  if( ( lcd_LUZ ) && ( millisAhora - millisLCDUltimoMensaje >= intervaloLCD ) )
-  {
-    millisLCDUltimoMensaje = millis();
-    lcd_LUZ = false;
-    cantidadMensajes++;
-    lcd.clear();
-    lcd.setCursor(0, 0);
-    lcd.print(L_s0);
-    lcd.print(valorLuz_0);
-    lcd.print(L);
-      #ifdef LIGHT_SENSOR_PIN_1
-      lcd.setCursor(0, 1);
-      lcd.print(L_s1);
-      lcd.print(valorLuz_1);
-      lcd.print(L);
-      #endif
-      return;
-    }
-  #endif
+
 
   #ifdef SOIL_PIN_0
     if( ( lcd_SUELO ) && ( millisAhora - millisLCDUltimoMensaje >= intervaloLCD ) )
@@ -531,13 +579,13 @@ void mensajesLCD()
       lcd_SUELO = false;
       cantidadMensajes++;
       lcd.clear();
-      lcd.setCursor(0, 0);
-      lcd.print(S_s0);
-      lcd.print(valorSuelo_0);
+      lcd.setCursor( 0, 0 );
+      lcd.print( S_s0 );
+      lcd.print( valorSuelo_0, 0 );
       #ifdef SOIL_PIN_1
-        lcd.setCursor(0, 1);
-        lcd.print(S_s1);
-        lcd.print(valorSuelo_1);
+        lcd.setCursor( 0, 1 );
+        lcd.print( S_s1 );
+        lcd.print( valorSuelo_1, 0 );
       #endif
       return;
     }
